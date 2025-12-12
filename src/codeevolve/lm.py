@@ -10,16 +10,14 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Any, Dict, List, Optional, Tuple
-
 import asyncio
-from dataclasses import dataclass, field
 import logging
 import random
-import httpx
-
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 
+import httpx
 from openai import AsyncOpenAI
 
 # TODO: classes for open-source LM's executing locally.
@@ -168,7 +166,15 @@ class LMEnsemble:
 
         self.weights: List[float] = [model.weight for model in self.models]
         total = sum(self.weights)
-        self.weights = [weight / total for weight in self.weights]
+        # Avoid division by zero if all weights are 0
+        if total > 0:
+            self.weights = [weight / total for weight in self.weights]
+        elif len(self.weights) > 0:
+            # Fallback to uniform weights if all are 0
+            self.weights = [1.0 / len(self.weights) for _ in self.weights]
+        else:
+            # Empty weights list - should not happen in normal usage
+            raise ValueError("LMEnsemble requires at least one model")
 
         self.random_state: random.Random = random.Random()
         self.seed: Optional[int] = seed

@@ -10,16 +10,15 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Dict, List, Optional, Callable, Tuple
-
-from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
-import random
 import math
+import random
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from codeevolve.utils.cvt_utils import cvt, closest_centroid_idx
+from codeevolve.utils.cvt_utils import closest_centroid_idx, cvt
 
 
 @dataclass
@@ -183,7 +182,12 @@ class GridEliteMap(EliteMap):
 
             value = max(feature.min_val, min(value, feature.max_val))
 
-            proportion: float = (value - feature.min_val) / (feature.max_val - feature.min_val)
+            # Avoid division by zero if min_val equals max_val
+            if feature.max_val - feature.min_val == 0:
+                # Use middle of range when min equals max (degenerate case)
+                proportion: float = 0.5
+            else:
+                proportion: float = (value - feature.min_val) / (feature.max_val - feature.min_val)
             idx: int = int(proportion * (feature.num_bins - 1))
             indices.append(idx)
 

@@ -10,17 +10,19 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Optional, Dict
-import tempfile
-import logging
-import subprocess
-import threading
 import json
-import time
-import psutil
+import logging
 import pathlib
 import shutil
+import subprocess
 import sys
+import tempfile
+import threading
+import time
+from typing import Dict, Optional
+
+import psutil
+
 from codeevolve.database import Program
 
 # TODO: better sandboxing (e.g. firejail)
@@ -56,7 +58,8 @@ def mem_monitor(
                 mem_exceeded_flag.set()
                 return
             time.sleep(mem_check_interval_s)
-    except:
+    except Exception:
+        # Process may have terminated, exit monitoring gracefully
         return
 
 
@@ -170,7 +173,8 @@ class Evaluator:
                 if temp_cwd_dir:
                     try:
                         temp_cwd_dir.cleanup()
-                    except:
+                    except Exception:
+                        # Cleanup may fail if directory is in use
                         pass
                     temp_cwd_dir = None
 
@@ -245,12 +249,14 @@ class Evaluator:
         finally:
             try:
                 tmp_dir.cleanup()
-            except:
+            except Exception:
+                # Cleanup may fail if directory is in use
                 pass
             if temp_cwd_dir:
                 try:
                     temp_cwd_dir.cleanup()
-                except:
+                except Exception:
+                    # Cleanup may fail if directory is in use
                     pass
 
         if not error:

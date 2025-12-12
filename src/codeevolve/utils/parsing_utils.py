@@ -11,8 +11,8 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Dict, Tuple, List
 import re
+from typing import Dict, List, Tuple
 
 
 class SearchAndReplaceError(Exception):

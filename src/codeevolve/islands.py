@@ -10,16 +10,15 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import List, Tuple, Dict, Optional, DefaultDict
-
-from collections import defaultdict
-from dataclasses import dataclass
-import threading
+import logging
 import multiprocessing as mp
+import multiprocessing.connection as mpc
 import multiprocessing.sharedctypes as mpsct
 import multiprocessing.synchronize as mps
-import multiprocessing.connection as mpc
-import logging
+import threading
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import DefaultDict, Dict, List, Optional, Tuple
 
 from codeevolve.database import Program
 
@@ -308,8 +307,8 @@ def recv_migrants(
                     migrant: Program = edge.v_conn.recv()
                     in_migrants.append(migrant)
                     logger.info(f"[RECV THREAD] Received {migrant} from {edge.u}.")
-                except:
-                    logger.error(f"[RECV THREAD] Unable to receive migrant from {edge.u}.")
+                except Exception as e:
+                    logger.error(f"[RECV THREAD] Unable to receive migrant from {edge.u}: {e}")
         logger.info("[RECV THREAD] Received migrants.")
 
 

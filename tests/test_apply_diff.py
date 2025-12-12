@@ -13,10 +13,10 @@
 import pytest
 
 from codeevolve.utils.parsing_utils import (
-    apply_diff,
-    SearchAndReplaceError,
     DiffError,
     EvolveBlockError,
+    SearchAndReplaceError,
+    apply_diff,
 )
 
 
