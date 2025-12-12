@@ -9,11 +9,16 @@
 #
 # Generic template for running CodeEvolve on any project in the problems directory.
 #
+# BEST PRACTICE: Copy this to your project folder (problems/YOUR_PROJECT/run.sh)
+# This keeps everything self-contained and portable.
+#
 # Usage:
-#   1. Copy this template to your project directory
-#   2. Set the PROJECT_NAME variable to your project path (relative to problems/)
+#   1. Copy this template to your project directory:
+#      cp problems/run_template.sh problems/YOUR_PROJECT/run.sh
+#   2. Edit and set PROJECT_NAME to your project path (relative to problems/)
 #   3. Adjust CONFIG_NAME if using a different config file
-#   4. Run: bash run_template.sh
+#   4. Run from your project folder:
+#      cd problems/YOUR_PROJECT && bash run.sh
 #
 # ===--------------------------------------------------------------------------------------===#
 
