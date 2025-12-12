@@ -10,16 +10,15 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Dict, List, Optional, Callable, Tuple
-
-from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
-import random
 import math
+import random
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from codeevolve.utils.cvt_utils import cvt, closest_centroid_idx
+from codeevolve.utils.cvt_utils import closest_centroid_idx, cvt
 
 
 @dataclass

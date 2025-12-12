@@ -10,30 +10,29 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Any, Dict, List, Tuple, Optional
-
 import argparse
 import asyncio
+import ctypes
 import multiprocessing as mp
 import multiprocessing.sharedctypes as mpsct
 import multiprocessing.synchronize as mps
-import ctypes
 import os
-from pathlib import Path
 import re
 import sys
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 import yaml
 
+from codeevolve.evolution import codeevolve
 from codeevolve.islands import (
-    PipeEdge,
-    IslandData,
-    GlobalData,
     GlobalBestProg,
+    GlobalData,
+    IslandData,
+    PipeEdge,
     get_edge_list,
     get_pipe_graph,
 )
-from codeevolve.evolution import codeevolve
 from codeevolve.utils.logging_utils import cli_logger
 
 
@@ -92,7 +91,7 @@ def setup_isl_args(args: Dict[str, Any], num_islands: int) -> Dict[int, Dict[str
     """
     isl2args: Dict[int, Dict[str, Any]] = {}
 
-    common_ckpts: set[str] = {}
+    common_ckpts: set[str] = set()
     for island_id in range(num_islands):
         isl_args: Dict[str, Any] = args.copy()
         isl_args["isl_out_dir"] = isl_args["out_dir"].joinpath(f"{island_id}/")

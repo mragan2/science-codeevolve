@@ -10,17 +10,19 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Optional, Dict
-import tempfile
-import logging
-import subprocess
-import threading
 import json
-import time
-import psutil
+import logging
 import pathlib
 import shutil
+import subprocess
 import sys
+import tempfile
+import threading
+import time
+from typing import Dict, Optional
+
+import psutil
+
 from codeevolve.database import Program
 
 # TODO: better sandboxing (e.g. firejail)
