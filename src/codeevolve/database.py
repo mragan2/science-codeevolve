@@ -183,7 +183,12 @@ class GridEliteMap(EliteMap):
 
             value = max(feature.min_val, min(value, feature.max_val))
 
-            proportion: float = (value - feature.min_val) / (feature.max_val - feature.min_val)
+            # Avoid division by zero if min_val equals max_val
+            if feature.max_val - feature.min_val == 0:
+                # Use middle of range when min equals max (degenerate case)
+                proportion: float = 0.5
+            else:
+                proportion: float = (value - feature.min_val) / (feature.max_val - feature.min_val)
             idx: int = int(proportion * (feature.num_bins - 1))
             indices.append(idx)
 

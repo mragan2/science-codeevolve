@@ -97,7 +97,7 @@ def setup_isl_args(args: Dict[str, Any], num_islands: int) -> Dict[int, Dict[str
     """
     isl2args: Dict[int, Dict[str, Any]] = {}
 
-    common_ckpts: set[str] = {}
+    common_ckpts: set[str] = set()
     for island_id in range(num_islands):
         isl_args: Dict[str, Any] = args.copy()
         isl_args["isl_out_dir"] = isl_args["out_dir"].joinpath(f"{island_id}/")
@@ -174,10 +174,13 @@ def main():
 
     try:
         if os.path.exists(cfg_copy_path) and args["load_ckpt"]:
-            config: Dict[Any, Any] = yaml.safe_load(open(cfg_copy_path, "r"))
+            with open(cfg_copy_path, "r") as f:
+                config: Dict[Any, Any] = yaml.safe_load(f)
         else:
-            config: Dict[Any, Any] = yaml.safe_load(open(args["cfg_path"], "r"))
-            yaml.safe_dump(config, open(cfg_copy_path, "w"))
+            with open(args["cfg_path"], "r") as f:
+                config: Dict[Any, Any] = yaml.safe_load(f)
+            with open(cfg_copy_path, "w") as f:
+                yaml.safe_dump(config, f)
     except Exception as err:
         print(str(err))
         sys.exit(1)

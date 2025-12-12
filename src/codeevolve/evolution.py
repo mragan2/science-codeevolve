@@ -103,7 +103,7 @@ async def evolve_loop(
         logger.info(f"Best prompt: {prompt_db.programs[prompt_db.best_prog_id]}")
         logger.info(f"Solution database: {sol_db}")
         logger.info(f"Best solution: {sol_db.programs[sol_db.best_prog_id]}")
-        if config.get("MAP_ELITES", None):
+        if config.get("use_map_elites", False) and sol_db.elite_map is not None:
             logger.info(f"sol_db EliteMap: {sol_db.elite_map.map}")
             logger.info(f"prompt_db EliteMap: {prompt_db.elite_map.map}")
 
@@ -526,7 +526,8 @@ async def codeevolve(args: Dict[str, Any], isl_data: IslandData, global_data: Gl
         "exploration": [],
     }
 
-    config: Dict[Any, Any] = yaml.safe_load(open(args["cfg_path"], "r"))
+    with open(args["cfg_path"], "r") as f:
+        config: Dict[Any, Any] = yaml.safe_load(f)
     evolve_config = config["EVOLVE_CONFIG"]
 
     ensemble: LMEnsemble = LMEnsemble(
