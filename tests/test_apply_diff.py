@@ -14,6 +14,7 @@ import pytest
 
 from codeevolve.utils.parsing_utils import (
     apply_diff,
+    apply_diff_with_fallback,
     SearchAndReplaceError,
     DiffError,
     EvolveBlockError,
@@ -257,6 +258,44 @@ def foobar2(x:int):
     return x+5
 def barfoo2(y:int):
     return y+6
+# EVOLVE-BLOCK-END
+"""
+        )
+
+    def test_fallback_replaces_evolve_block_when_no_diff_blocks(self):
+        parent_code = """
+# EVOLVE-BLOCK-START
+old_code
+# EVOLVE-BLOCK-END
+"""
+        replacement = """
+# EVOLVE-BLOCK-START
+new_code
+# EVOLVE-BLOCK-END
+"""
+        child_code = apply_diff_with_fallback(parent_code, replacement)
+        assert (
+            child_code
+            == """
+# EVOLVE-BLOCK-START
+new_code
+# EVOLVE-BLOCK-END
+"""
+        )
+
+    def test_fallback_uses_raw_text_when_no_markers(self):
+        parent_code = """
+# EVOLVE-BLOCK-START
+old_code
+# EVOLVE-BLOCK-END
+"""
+        replacement = "new_code"
+        child_code = apply_diff_with_fallback(parent_code, replacement)
+        assert (
+            child_code
+            == """
+# EVOLVE-BLOCK-START
+new_code
 # EVOLVE-BLOCK-END
 """
         )

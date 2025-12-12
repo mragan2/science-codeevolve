@@ -88,11 +88,12 @@ fi
 REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 
 # Construct paths based on the standard project structure:
-# - init_program.py is always in: problems/PROJECT_NAME/input/src/
-# - evaluate.py is always in: problems/PROJECT_NAME/input/
-# - config.yaml is in: problems/PROJECT_NAME/configs/
+# - Problem base directory: problems/PROJECT_NAME/
+# - initial_program.py: problems/PROJECT_NAME/input/src/
+# - evaluate.py: problems/PROJECT_NAME/input/
+# - config.yaml: problems/PROJECT_NAME/configs/
 BASE_DIR="${REPO_ROOT}/problems/${PROJECT_NAME}"
-INPT_DIR="${BASE_DIR}/input/"
+INPT_DIR="${BASE_DIR}/"
 CFG_PATH="${BASE_DIR}/configs/${CONFIG_NAME}.yaml"
 OUT_DIR="${REPO_ROOT}/experiments/${PROJECT_NAME}/${OUTPUT_NAME}"
 
@@ -115,7 +116,7 @@ echo ""
 # Check if required directories and files exist
 if [ ! -d "${INPT_DIR}" ]; then
     echo "ERROR: Input directory does not exist: ${INPT_DIR}"
-    echo "Expected structure: problems/${PROJECT_NAME}/input/"
+    echo "Expected structure: problems/${PROJECT_NAME}/"
     exit 1
 fi
 
@@ -126,22 +127,53 @@ if [ ! -f "${CFG_PATH}" ]; then
     exit 1
 fi
 
-if [ ! -f "${INPT_DIR}/evaluate.py" ]; then
-    echo "ERROR: evaluate.py not found in ${INPT_DIR}"
-    echo "Expected: ${INPT_DIR}/evaluate.py"
+if [ ! -f "${INPT_DIR}/input/evaluate.py" ]; then
+    echo "ERROR: evaluate.py not found in ${INPT_DIR}/input/"
+    echo "Expected: ${INPT_DIR}/input/evaluate.py"
     exit 1
 fi
 
-if [ ! -f "${INPT_DIR}/src/init_program.py" ]; then
-    echo "WARNING: init_program.py not found in ${INPT_DIR}/src/"
-    echo "Expected: ${INPT_DIR}/src/init_program.py"
+if [ ! -f "${INPT_DIR}/input/src/initial_program.py" ] && [ ! -f "${INPT_DIR}/input/src/init_program.py" ]; then
+    echo "WARNING: No initial program found in ${INPT_DIR}/input/src/"
+    echo "Expected one of:"
+    echo "  - ${INPT_DIR}/input/src/initial_program.py (default)"
+    echo "  - ${INPT_DIR}/input/src/init_program.py (legacy)"
 fi
 
 # Check if codeevolve command is available
-if ! command -v codeevolve &> /dev/null; then
-    echo "ERROR: codeevolve command not found. Please install the package:"
-    echo "  pip install -e ."
-    exit 1
+CODEEVOLVE_CMD=()
+
+# Prefer a repo-local conda env if present (works even when not activated).
+REPO_CONDA_PY="${REPO_ROOT}/.conda/bin/python"
+REPO_CONDA_CODEEVOLVE="${REPO_ROOT}/.conda/bin/codeevolve"
+
+PYTHON_BIN=""
+if [ -n "${CODEEVOLVE_PYTHON}" ] && [ -x "${CODEEVOLVE_PYTHON}" ]; then
+    PYTHON_BIN="${CODEEVOLVE_PYTHON}"
+elif [ -x "${REPO_CONDA_PY}" ]; then
+    PYTHON_BIN="${REPO_CONDA_PY}"
+elif command -v python &> /dev/null; then
+    PYTHON_BIN="python"
+elif command -v python3 &> /dev/null; then
+    PYTHON_BIN="python3"
+fi
+
+if command -v codeevolve &> /dev/null; then
+    CODEEVOLVE_CMD=(codeevolve)
+elif [ -x "${REPO_CONDA_CODEEVOLVE}" ]; then
+    CODEEVOLVE_CMD=("${REPO_CONDA_CODEEVOLVE}")
+else
+    # Fall back to running the module directly from the repo.
+    # This avoids requiring an editable install just to run a local experiment.
+    if [ -z "${PYTHON_BIN}" ]; then
+        echo "ERROR: Neither 'codeevolve' nor a usable Python interpreter was found."
+        echo "Expected one of: codeevolve in PATH, ${REPO_CONDA_CODEEVOLVE}, python/python3 in PATH, or CODEEVOLVE_PYTHON=/path/to/python"
+        exit 1
+    fi
+
+    export PYTHONPATH="${REPO_ROOT}/src:${PYTHONPATH}"
+    CODEEVOLVE_CMD=("${PYTHON_BIN}" -m codeevolve.cli)
+    echo "NOTE: 'codeevolve' CLI not found; using: ${PYTHON_BIN} -m codeevolve.cli"
 fi
 
 # Create output directory
@@ -163,8 +195,22 @@ if [ ! -z "${API_BASE}" ]; then
 fi
 
 # Check if API keys are available (from any source)
+
+# The CodeEvolve CLI currently requires both variables to exist in the environment.
+# For local/self-hosted endpoints, API_KEY is often unused; exporting it as an empty
+# string is sufficient.
+if [ -z "${API_BASE+x}" ]; then
+    export API_BASE="http://localhost:11434/v1"
+    echo "NOTE: API_BASE not set; defaulting to ${API_BASE}"
+fi
+
+if [ -z "${API_KEY+x}" ]; then
+    export API_KEY="ollama"
+    echo "NOTE: API_KEY not set; defaulting to ${API_KEY}"
+fi
+
 if [ -z "${API_KEY}" ]; then
-    echo "WARNING: API_KEY is not set. The run may fail if your LLM requires authentication."
+    echo "WARNING: API_KEY is empty. The run may fail if your LLM requires authentication."
     echo "Set it via:"
     echo "  1. Environment variable: export API_KEY='your-key'"
     echo "  2. In this run.sh file (see API CONFIGURATION section)"
@@ -179,22 +225,25 @@ fi
 echo "Starting CodeEvolve..."
 echo ""
 
+CODEEVOLVE_ARGS=(
+    --inpt_dir="${INPT_DIR}"
+    --cfg_path="${CFG_PATH}"
+    --out_dir="${OUT_DIR}"
+    --load_ckpt="${LOAD_CKPT}"
+    --terminal_logging
+)
+
 if [ -n "${CPU_LIST}" ]; then
     # Run with CPU affinity
-    taskset --cpu-list "${CPU_LIST}" codeevolve \
-        --inpt_dir="${INPT_DIR}" \
-        --cfg_path="${CFG_PATH}" \
-        --out_dir="${OUT_DIR}" \
-        --load_ckpt="${LOAD_CKPT}" \
-        --terminal_logging
+    if command -v taskset &> /dev/null; then
+        taskset --cpu-list "${CPU_LIST}" "${CODEEVOLVE_CMD[@]}" "${CODEEVOLVE_ARGS[@]}"
+    else
+        echo "WARNING: 'taskset' not found; running without CPU affinity."
+        "${CODEEVOLVE_CMD[@]}" "${CODEEVOLVE_ARGS[@]}"
+    fi
 else
     # Run without CPU affinity
-    codeevolve \
-        --inpt_dir="${INPT_DIR}" \
-        --cfg_path="${CFG_PATH}" \
-        --out_dir="${OUT_DIR}" \
-        --load_ckpt="${LOAD_CKPT}" \
-        --terminal_logging
+    "${CODEEVOLVE_CMD[@]}" "${CODEEVOLVE_ARGS[@]}"
 fi
 
 # ==================================

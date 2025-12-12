@@ -212,6 +212,10 @@ __marimo__/
 debug/
 mock/
 
+# CodeEvolve run outputs / local env
+experiments/
+.conda/
+
 # API Keys and Secrets
 # NEVER commit API keys or credentials
 .api_keys

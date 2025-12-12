@@ -37,6 +37,10 @@ from codeevolve.evolution import codeevolve
 from codeevolve.utils.logging_utils import cli_logger
 
 
+def async_run_evolve(run_args: Dict[str, Any], isl_data: IslandData, global_data: GlobalData) -> None:
+    asyncio.run(codeevolve(run_args, isl_data, global_data))
+
+
 def parse_args() -> argparse.Namespace:
     """Parses command-line arguments for CodeEvolve execution.
 
@@ -143,9 +147,6 @@ def main():
               input/output paths, configuration, and execution settings.
     """
 
-    def _async_run_evolve(run_args: Dict[str, Any], isl_data: IslandData, global_data: GlobalData):
-        asyncio.run(codeevolve(run_args, isl_data, global_data))
-
     # args
     args: Dict[str, Any] = vars(parse_args())
     args["inpt_dir"] = Path(args["inpt_dir"])
@@ -236,14 +237,20 @@ def main():
             out_neigh=out_adj[island_id] if out_adj else None,
         )
 
-        process = mp.Process(
-            target=_async_run_evolve, args=(isl2args[island_id], isl_data, global_data)
-        )
+        process = mp.Process(target=async_run_evolve, args=(isl2args[island_id], isl_data, global_data))
         processes.append(process)
         process.start()
 
     for process in processes:
         process.join()
+
+    # If any island process crashed, surface that as a non-zero exit.
+    # Otherwise the CLI can incorrectly report success even though nothing ran.
+    bad_exitcodes = [(i, p.exitcode) for i, p in enumerate(processes) if p.exitcode not in (0, None)]
+    if bad_exitcodes:
+        for idx, code in bad_exitcodes:
+            print(f"Island process {idx} exited with code {code}.")
+        return 1
 
     if args.get("terminal_logging", False):
         # kill log daemon

@@ -29,7 +29,7 @@ from codeevolve.islands import (
     early_stopping_check,
 )
 
-from codeevolve.utils.parsing_utils import apply_diff
+from codeevolve.utils.parsing_utils import apply_diff_with_fallback
 from codeevolve.utils.logging_utils import get_logger
 from codeevolve.utils.ckpt_utils import save_ckpt, load_ckpt
 
@@ -188,7 +188,7 @@ async def evolve_loop(
             if meta_prompt_success:
                 try:
                     logger.info("Attempting to SEARCH/REPLACE...")
-                    child_prompt_txt: str = apply_diff(
+                    child_prompt_txt: str = apply_diff_with_fallback(
                         parent_code=parent_prompt.code,
                         diff=prompt_diff,
                         start_marker=mp_start_marker,
@@ -277,9 +277,9 @@ async def evolve_loop(
         if evolve_success:
             try:
                 logger.info("Attempting to SEARCH/REPLACE...")
-                child_sol_code: str = apply_diff(
+                child_sol_code: str = apply_diff_with_fallback(
                     parent_code=parent_sol.code,
-                    diff=sol_diff,
+                    diff_or_text=sol_diff,
                     start_marker=evolve_start_marker,
                     end_marker=evolve_end_marker,
                 )

@@ -11,7 +11,7 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Dict, Tuple, List
+from typing import Dict, Tuple, List, Optional
 import re
 
 
@@ -44,6 +44,110 @@ class EvolveBlockError(Exception):
     """
 
     pass
+
+
+def _strip_markdown_fences(text: str) -> str:
+    """Remove common Markdown code fences from an LLM response.
+
+    This is intentionally conservative: it only strips a single outermost fenced
+    code block and leaves inner content untouched.
+    """
+
+    s = text.strip()
+    if s.startswith("```"):
+        # Drop opening fence line (``` or ```lang)
+        first_newline = s.find("\n")
+        if first_newline != -1:
+            s = s[first_newline + 1 :]
+        # Drop closing fence if present
+        if s.rstrip().endswith("```"):
+            s = s.rstrip()
+            s = s[: -3]
+    return s.strip()
+
+
+def extract_evolve_block_contents(
+    text: str,
+    start_marker: str = "# EVOLVE-BLOCK-START",
+    end_marker: str = "# EVOLVE-BLOCK-END",
+) -> List[str]:
+    """Extracts evolve-block contents from arbitrary text.
+
+    Returns a list of contents (without markers). If no blocks exist, returns [].
+    """
+
+    evolve_regex: str = rf"\s*{re.escape(start_marker)}\s*\n?(.*?)\n?\s*{re.escape(end_marker)}"
+    return [m.group(1) for m in re.finditer(evolve_regex, text, re.DOTALL)]
+
+
+def apply_evolve_block_replacement(
+    parent_code: str,
+    replacement_text: str,
+    start_marker: str = "# EVOLVE-BLOCK-START",
+    end_marker: str = "# EVOLVE-BLOCK-END",
+) -> str:
+    """Fallback: replace evolve-block content using raw replacement text.
+
+    If replacement_text itself contains evolve markers, only the extracted block
+    contents are used. Otherwise the whole replacement_text is inserted into the
+    first evolve block.
+    """
+
+    evolve_regex: str = rf"\s*{re.escape(start_marker)}\s*\n?(.*?)\n?\s*{re.escape(end_marker)}"
+    evolve_spans: List[Tuple[int, int]] = find_evolve_block_spans(
+        parent_code=parent_code, evolve_regex=evolve_regex
+    )
+
+    cleaned = _strip_markdown_fences(replacement_text)
+    extracted = extract_evolve_block_contents(cleaned, start_marker=start_marker, end_marker=end_marker)
+    if not extracted:
+        # Treat the full response as the evolve-block body.
+        extracted = [cleaned]
+
+    # If counts match, replace all blocks in order; otherwise replace only the first.
+    replace_all = len(extracted) == len(evolve_spans)
+
+    child_code_parts: List[str] = []
+    last_end: int = 0
+    for i, (start, end) in enumerate(evolve_spans):
+        child_code_parts.append(parent_code[last_end:start])
+        if replace_all:
+            child_code_parts.append(extracted[i])
+        else:
+            child_code_parts.append(extracted[0] if i == 0 else parent_code[start:end])
+        last_end = end
+    child_code_parts.append(parent_code[last_end:])
+    return "".join(child_code_parts)
+
+
+def apply_diff_with_fallback(
+    parent_code: str,
+    diff_or_text: str,
+    start_marker: str = "# EVOLVE-BLOCK-START",
+    end_marker: str = "# EVOLVE-BLOCK-END",
+    diff_regex: str = r"<{7}\s*SEARCH\s*\n?(.*?)\n?\s*={7}\s*\n?(.*?)\n?\s*>{7}\s*REPLACE",
+) -> str:
+    """Apply SEARCH/REPLACE diffs; if none exist, replace evolve block content.
+
+    This makes the system robust to LLMs that return whole code instead of the
+    requested diff format.
+    """
+
+    try:
+        return apply_diff(
+            parent_code=parent_code,
+            diff=diff_or_text,
+            start_marker=start_marker,
+            end_marker=end_marker,
+            diff_regex=diff_regex,
+        )
+    except DiffError:
+        return apply_evolve_block_replacement(
+            parent_code=parent_code,
+            replacement_text=diff_or_text,
+            start_marker=start_marker,
+            end_marker=end_marker,
+        )
 
 
 def _sanitize_block_content(text: str, start_marker: str, end_marker: str) -> str:
