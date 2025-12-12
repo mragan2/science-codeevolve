@@ -47,6 +47,27 @@ LOAD_CKPT=-1
 CPU_LIST=""
 
 # ==================================
+# API CONFIGURATION (OPTIONAL)
+# ==================================
+# You can set API credentials here or use environment variables
+# If set here, they will override environment variables
+
+# Option 1: Set API key directly (NOT RECOMMENDED for shared/public projects)
+# API_KEY="your-api-key-here"
+# API_BASE="https://api.openai.com/v1"
+
+# Option 2: Use environment variables (RECOMMENDED)
+# Leave commented out to use existing environment variables
+# Or set them here to override:
+# export API_KEY="${API_KEY:-your-default-key}"
+# export API_BASE="${API_BASE:-https://api.openai.com/v1}"
+
+# Option 3: Load from external file (MOST SECURE)
+# Create a file with: export API_KEY="..." and export API_BASE="..."
+# Then uncomment the line below:
+# source ~/.codeevolve_api_keys
+
+# ==================================
 # AUTOMATIC PATH SETUP - DO NOT EDIT
 # ==================================
 
@@ -113,6 +134,31 @@ fi
 
 # Create output directory
 mkdir -p "${OUT_DIR}"
+
+# ==================================
+# API KEY SETUP
+# ==================================
+
+# Export API keys if they were set in the configuration section above
+if [ ! -z "${API_KEY}" ]; then
+    export API_KEY
+    echo "Using API_KEY from run script configuration"
+fi
+
+if [ ! -z "${API_BASE}" ]; then
+    export API_BASE
+    echo "Using API_BASE from run script: ${API_BASE}"
+fi
+
+# Check if API keys are available (from any source)
+if [ -z "${API_KEY}" ]; then
+    echo "WARNING: API_KEY is not set. The run may fail if your LLM requires authentication."
+    echo "Set it via:"
+    echo "  1. Environment variable: export API_KEY='your-key'"
+    echo "  2. In this run.sh file (see API CONFIGURATION section)"
+    echo "  3. External file: source ~/.codeevolve_api_keys"
+    echo ""
+fi
 
 # ==================================
 # RUN CODEEVOLVE

@@ -211,3 +211,13 @@ __marimo__/
 # debug
 debug/
 mock/
+
+# API Keys and Secrets
+# NEVER commit API keys or credentials
+.api_keys
+*api_keys
+*.api_keys
+**/api_keys.sh
+**/.api_keys
+problems/.api_keys
+.codeevolve_api_keys

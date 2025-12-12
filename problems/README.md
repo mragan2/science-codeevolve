@@ -73,6 +73,43 @@ bash problems/YOUR_PROJECT/run.sh
 - ✅ Parallel runs: Run multiple projects simultaneously
 - ✅ Simple: Just `cd` to project and run `bash run.sh`
 
+### API Key Configuration
+
+The run script supports multiple ways to configure API keys:
+
+**Option 1: Set in run.sh (Quick but less secure)**
+```bash
+# Edit your run.sh file
+API_KEY="your-api-key-here"
+API_BASE="https://api.openai.com/v1"
+```
+⚠️ **Warning**: Don't commit API keys to git! Add run.sh to .gitignore if it contains keys.
+
+**Option 2: Environment Variables (Recommended for development)**
+```bash
+export API_KEY="your-api-key-here"
+export API_BASE="https://api.openai.com/v1"
+bash problems/YOUR_PROJECT/run.sh
+```
+
+**Option 3: External File (Most Secure)**
+```bash
+# 1. Copy the example file
+cp problems/.api_keys.example problems/.api_keys
+
+# 2. Edit with your actual keys
+nano problems/.api_keys
+
+# 3. Source it in your run.sh
+# Add this line to run.sh:
+source problems/.api_keys
+
+# 4. Run normally
+bash run.sh
+```
+
+The `.api_keys` file is automatically ignored by git for security.
+
 ### Method 2: Direct Command Line
 
 ```bash
@@ -630,11 +667,35 @@ ls problems/YOUR_PROJECT/configs/
 # Use exact filename without .yaml in run.sh
 ```
 
-**Error: "API key not set"**
+**Error: "API key not set" or "Authentication failed"**
+
+Three ways to fix:
+
+1. **Environment variables:**
 ```bash
 export API_KEY="your-key"
-export API_BASE="https://api-url.com"
+export API_BASE="https://api.openai.com/v1"
+bash run.sh
 ```
+
+2. **In run.sh file:**
+```bash
+# Edit run.sh and uncomment/set:
+API_KEY="your-api-key-here"
+API_BASE="https://api.openai.com/v1"
+```
+
+3. **External file (recommended):**
+```bash
+# Create .api_keys file
+cp problems/.api_keys.example problems/.api_keys
+nano problems/.api_keys  # Add your keys
+
+# In run.sh, uncomment:
+source problems/.api_keys
+```
+
+**Important**: Never commit API keys to version control!
 
 **Error: "Evaluation timeout"**
 Increase `EVAL_TIMEOUT` in config.yaml (seconds):
