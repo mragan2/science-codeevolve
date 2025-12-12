@@ -7,18 +7,13 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 #
-# Generic template for running CodeEvolve on any project in the problems directory.
-#
-# BEST PRACTICE: Copy this to your project folder (problems/YOUR_PROJECT/run.sh)
-# This keeps everything self-contained and portable.
+# Run script for the F_time problem.
+# Copied from problems/run_template.sh and customized for this project.
 #
 # Usage:
-#   1. Copy this template to your project directory:
-#      cp problems/run_template.sh problems/YOUR_PROJECT/run.sh
-#   2. Edit and set PROJECT_NAME to your project path (relative to problems/)
-#   3. Adjust CONFIG_NAME if using a different config file
-#   4. Run from your project folder:
-#      cd problems/YOUR_PROJECT && bash run.sh
+#   cd problems/F_time && bash run.sh
+#   # or from repo root:
+#   bash problems/F_time/run.sh
 #
 # ===--------------------------------------------------------------------------------------===#
 
@@ -27,14 +22,9 @@
 # ==================================
 
 # Project name relative to the problems/ directory
-# Examples:
-#   - "F_time"
-#   - "alphaevolve_math_problems/circle_packing_square/26"
-#   - "problem_template"
 PROJECT_NAME="F_time"
 
 # Config file name (without .yaml extension)
-# Common options: config, config_mp_insp, config_insp, config_mp, config_no_evolve
 CONFIG_NAME="config"
 
 # Output directory name (will be created under experiments/)

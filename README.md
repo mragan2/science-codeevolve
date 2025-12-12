@@ -26,6 +26,8 @@ conda activate codeevolve
 ```
 The command-line version of codeevolve is implemented in ```src/codeevolve/cli.py```, and ```scripts/run.sh``` contains a bash script for running codeevolve on a given benchmark. The most important variables to be defined in this file are the ```API_KEY, API_BASE``` environment variables for connecting with an LLM provider.
 
+For a concrete example, see the [F_time setup guide](problems/F_time/SETUP.md) for step-by-step instructions to clone the repository under `/home/rag/Projects`, configure the conda environment, and run the bundled benchmark script.
+
 More comprehensive tutorials will be released soon.
 
 ## Next steps
