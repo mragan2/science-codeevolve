@@ -408,8 +408,9 @@ class ProgramDatabase:
             return
 
         # Insert into sorted list using bisect (negative fitness for descending order)
+        # Use bisect_right to maintain stable ordering (newer programs with same fitness go after older ones)
         neg_fitness = -prog.fitness
-        insertion_point = bisect.bisect_left(self._sorted_pids, (neg_fitness, prog.id))
+        insertion_point = bisect.bisect_right([fit for fit, _ in self._sorted_pids], neg_fitness)
         self._sorted_pids.insert(insertion_point, (neg_fitness, prog.id))
         
         # Update pool cache
