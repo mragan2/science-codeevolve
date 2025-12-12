@@ -71,9 +71,31 @@ CPU_LIST=""
 # AUTOMATIC PATH SETUP - DO NOT EDIT
 # ==================================
 
-# Get the absolute path to the science-codeevolve directory
+# Get the absolute path to the science-codeevolve directory.
+# We try git first (works from any subdirectory), then fall back to walking
+# up the tree until we find a .git folder. Finally, default to one level up.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+if command -v git &> /dev/null; then
+    REPO_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null)"
+fi
+
+if [ -z "${REPO_ROOT}" ]; then
+    SEARCH_DIR="${SCRIPT_DIR}"
+    while [ "${SEARCH_DIR}" != "/" ]; do
+        if [ -d "${SEARCH_DIR}/.git" ]; then
+            REPO_ROOT="${SEARCH_DIR}"
+            break
+        fi
+        NEXT_DIR="$(cd "${SEARCH_DIR}/.." && pwd)"
+        if [ "${NEXT_DIR}" = "${SEARCH_DIR}" ]; then
+            break
+        fi
+        SEARCH_DIR="${NEXT_DIR}"
+    done
+fi
+
+REPO_ROOT="${REPO_ROOT:-$(cd "${SCRIPT_DIR}/.." && pwd)}"
 
 # Construct paths based on the standard project structure:
 # - init_program.py is always in: problems/PROJECT_NAME/input/src/
