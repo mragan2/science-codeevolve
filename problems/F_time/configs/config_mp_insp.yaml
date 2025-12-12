@@ -61,14 +61,14 @@ evolution_settings:
   # PROMPT-BLOCK-END
       
 CODEBASE_PATH: 'src/'
-INIT_FILE_DATA: {filename: 'INIT_PROGRAM.EXT', language: 'EXT'}
+INIT_FILE_DATA: {filename: 'initial_program.py', language: 'python'}
 EVAL_FILE_NAME: 'evaluate.py'
 EVAL_TIMEOUT: 180
 
 MAX_MEM_BYTES: 1000000000
 MEM_CHECK_INTERVAL_S: 0.1
 
-EVOLVE_CONFIG: {fitness_key: 'FITNESS_KEY',
+EVOLVE_CONFIG: {fitness_key: 'combined_score',
                 num_epochs: 100,ckpt: 5,max_size: 40,init_pop: 6,
                 exploration_rate: 0.3, 
                 selection_policy: 'roulette', selection_kwargs: {roulette_by_rank: True},

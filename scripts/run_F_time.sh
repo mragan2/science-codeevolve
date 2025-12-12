@@ -13,7 +13,7 @@ export API_BASE API_KEY
 
 PROB_NAME="F_time"
 BASE_DIR="problems/${PROB_NAME}"
-INPT_DIR="${BASE_DIR}/"
+INPT_DIR="${BASE_DIR}/input"
 CFG_PATH="${BASE_DIR}/configs/config.yaml"
 OUT_DIR="experiments/${PROB_NAME}/test/"
 RESULTS_DIR="${OUT_DIR}"

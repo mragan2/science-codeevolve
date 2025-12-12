@@ -122,9 +122,9 @@ SYS_MSG: |
   # PROMPT-BLOCK-END
 
 
-CODEBASE_PATH: 'input/src/'
+CODEBASE_PATH: 'src/'
 INIT_FILE_DATA: {filename: 'initial_program.py', language: 'python'}
-EVAL_FILE_NAME: 'input/evaluate.py'
+EVAL_FILE_NAME: 'evaluate.py'
 
 
 # --- RESOURCES ---
