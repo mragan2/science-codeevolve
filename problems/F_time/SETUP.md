@@ -33,7 +33,7 @@ pip install -e .
 ## 4) Provide API credentials (if your LLM provider requires them)
 Set the API key and base URL in your shell before running, or source a file that exports them:
 ```bash
-export API_KEY="<your-api-key>"
+export API_KEY="1e28fb7fb3b5486e88cf34c33127ef71.hpbxvrNGSUlgNGFz6Mgp7q0Z"
 export API_BASE="https://api.openai.com/v1"   # replace if using another provider
 # or, if you keep them in ~/.codeevolve_api_keys
 source ~/.codeevolve_api_keys

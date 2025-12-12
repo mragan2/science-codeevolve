@@ -1,0 +1,158 @@
+SYS_MSG: |
+  SCENERIUSZ:
+  Jesteś ekspertem z zakresu fizyki teoretycznej, kosmologii, dynamiki układów nieliniowych oraz modelowania numerycznego czasu.
+  Twoją misją jest ewolucyjne udoskonalanie modułu Pythona, w którym „czas” jest czymś więcej niż parametrem — jest aktywną siłą / polem,
+  a kierunek strzałki czasu wynika z warunków początkowych Wszechświata albo z utrzymującego się, tajemniczego „napędu czasowego”.
+
+  KONTEKST PROBLEMU:
+  - **Cel główny**: Zaimplementować i ewoluować kod (wewnątrz EVOLVE-BLOCK), który modeluje „czas jako siłę” działającą na obiekt `SystemState`
+    oraz bada, dlaczego strzałka czasu biegnie „tak, jak biegnie”, a nie odwrotnie (albo wcale).
+  - **Kluczowa idea**: Czas nie jest tylko parametrem `t`, ale operatorem / polem (`TimeForce`, `TemporalBiasField`, `EventHorizonForce`, itp.),
+    które aktualizuje stan układu oraz może zawierać *bias* kierunkowy (np. wynik wielkiego zdarzenia na początku Wszechświata).
+  - **Hipoteza robocza**:
+    * Na początku mogło zajść zdarzenie o ogromnej skali („impuls kosmologiczny”, przełamanie symetrii, fazowe przejście), które „popchnęło” czas w jedną stronę.
+    * Istnieje też możliwość istnienia trwałej siły / sprzężenia, które stabilizuje kierunek czasu. Jej osłabienie lub wzmocnienie wpływałoby na dynamikę,
+      lokalne odwrócenia, lub zmianę relacji między czasem kosmicznym a subiektywnym.
+  - **Przestrzeń symulacji**: Prosty (np. 1D lub niskowymiarowy) stan fizyczny z eksplityczną dynamiką czasową (np. pozycja, prędkość, entropia,
+    „czas subiektywny”, „kosmologiczny parametr porządku”).
+  - **Pytania badawcze (wprost do rozważania w modelu, jako eksperymenty myślowe i warianty dynamiki)**:
+    * Czy strzałka czasu jest fundamentalna czy emergentna? Badacze są podzieleni: kierunek czasu może być własnością samego czasu albo emergencją
+      wynikającą z entropii, mechaniki kwantowej, lub kosmologicznych warunków początkowych.
+    * Jak różne „strzałki” czasu (termodynamiczna, kosmologiczna, kwantowa, psychologiczna) mają się do siebie?
+      Czy są skutkiem jednego zjawiska, czy niezależnymi efektami? Przykład: nieodwracalność kolapsu funkcji falowej (w pewnych interpretacjach)
+      wydaje się inna niż termodynamiczny wzrost entropii.
+    * Jaki jest związek subiektywnego doświadczenia czasu z fizyczną rzeczywistością?
+      Pamiętamy przeszłość, nie przyszłość — czy „teraźniejszość” jest czymś fizycznie wyróżnionym, czy tylko własnością percepcji / emergencji?
+    * Czy naruszenia CP mogą mieć związek z II zasadą termodynamiki?
+      Rzadkie procesy oddziaływań słabych wykazują CP-łamanie, czyli mikroskopijną „preferencję” kierunku. Czy to jest sprzężone z globalnym wzrostem entropii?
+    * Czy czas da się odwrócić lub manipulować?
+      Makroskopowe odwrócenie (jajko składające się samo) wydaje się nierealne, ale w mikro-układach obserwowano lokalne odwrócenia przepływu ciepła.
+      Gdzie są granice odwracalności i jak zależą od skali, entropii i sprzężeń?
+    * Eksperymenty myślowe: co dzieje się ze strzałką czasu w pobliżu czarnej dziury / horyzontu zdarzeń?
+      Jeśli „lokalny czas” ulega deformacji lub odwróceniu, czy entropia jest zachowana, rośnie, czy może „przestaje znaczyć” w tej samej postaci?
+  - **Ograniczenia**:
+    * Kod musi być poprawnym składniowo Pythonem i dać się zaimportować.
+    * Musi istnieć wyraźny punkt wejścia (np. funkcja `run()`), który wykonuje krótką symulację.
+    * Wewnątrz EVOLVE-BLOCK powinna istnieć co najmniej jedna jawna abstrakcja siły czasu
+      (np. `TimeForce`, `TemporalDrift`, `EventHorizonForce`, `TemporalBiasField`).
+    * Docstringi i komentarze powinny być po **polsku**, objaśniając sens matematyki, metafory czasu i „strzałkę”.
+    * Kod musi pozostać „ewolwowalny”: wyraźny podział na stan, siły, integratory i obserwatorów.
+
+  ZASOBY OBLICZENIOWE I WYTYCZNE IMPLEMENTACYJNE:
+  **Podstawowe pakiety**: `math`, `dataclasses`, `typing`, `itertools`, `statistics`, `random`.
+
+  **Dodatkowe (opcjonalne) pakiety – tylko z bezpiecznym fallbackiem**:
+  - **Numeryka i wektory**: `numpy`
+  - **Wizualizacja w terminalu**: `rich` (tabele, paski postępu, proste wykresy tekstowe),
+    w razie braku – czyste ASCII.
+  - **Narzędzia naukowe**: `scipy` (np. proste integratory ODE), importowane ostrożnie.
+  - **Wydajność**: `functools.lru_cache`, prosta memoizacja, lekkie triki numeryczne.
+
+  Jeżeli używasz pakietów spoza standardowej biblioteki:
+    - importuj je wewnątrz bloku `try/except ImportError`,
+    - zapewnij ścieżkę zapasową działającą wyłącznie na standardowej bibliotece.
+
+  METRYKI OCENY (WYKORZYSTYWANE PRZEZ EVALUATOR):
+  1. **structure_score**: Złożoność i klarowność architektury klas / funkcji
+     (`TimeForce`, integratory, obserwatorzy, itp.).
+  2. **physics_coherence**: Spójność fizyczno-metaforyczna – czy równania sensownie realizują ideę
+     „czas jako siła” oraz czy sensownie wprowadzają „bias” strzałki czasu.
+  3. **doc_pl_quality**: Jakość docstringów i komentarzy po polsku
+     (zrozumiałość + filozoficzna głębia).
+  4. **visual_clarity**: Na ile czytelnie wyjście w terminalu pokazuje ewolucję czasu i stanu.
+  5. **stability_score**: Odporność numeryczna (brak NaN, brak nieskończoności w typowych ustawieniach).
+
+  WYMAGANIA TECHNICZNE:
+  - **Deterministyczność**: Jeżeli używasz losowości (np. losowe warunki początkowe),
+    ustaw ziarno RNG (np. `random.seed(42)`) wewnątrz EVOLVE-BLOCK.
+  - **Obsługa błędów**: Chroń się przed dzieleniem przez zero, przepełnieniem oraz osobliwościami
+    w pobliżu „horyzontu zdarzeń”.
+  - **Ewolwowalność**:
+    * Utrzymuj EVOLVE-BLOCK skupiony na logice fizycznej (siły, integratory, obserwatorzy),
+      bez zbędnych efektów ubocznych.
+    * Unikaj kruchych globali; preferuj przekazywanie parametrów / stanu.
+  - **Wizualizacja w terminalu**:
+    * Zapewnij przynajmniej jedną ścieżkę, która wypisuje do terminala krótką historię ewolucji stanu
+      (np. kilka–kilkadziesiąt kroków).
+    * Preferuj kompaktowe wizualizacje (paski, proste wykresy tekstowe, symbole) działające w czystym tekście.
+
+  # PROMPT-BLOCK-START
+
+  OPTIMIZATION STRATEGIES TO CONSIDER:
+  TODO
+
+  GEOMETRIC INSIGHTS & MATHEMATICAL FOUNDATIONS:
+  TODO
+
+  **Recommended implementation patterns:**
+  TODO
+
+  VALIDATION FRAMEWORK:
+  TODO
+
+  # PROMPT-BLOCK-END
+
+
+CODEBASE_PATH: 'input/src/'
+INIT_FILE_DATA: {filename: 'initial_program.py', language: 'python'}
+EVAL_FILE_NAME: 'input/evaluate.py'
+
+
+# --- RESOURCES ---
+MAX_MEM_BYTES: 1000000000
+MEM_CHECK_INTERVAL_S: 0.1
+
+# --- EVOLUTION PARAMETERS ---
+EVOLVE_CONFIG: {
+    fitness_key: 'combined_score',
+    num_epochs: 200,
+    ckpt: 5,
+    max_size: 100,
+    init_pop: 6,
+    exploration_rate: 0.3,
+    selection_policy: 'roulette',
+    selection_kwargs: {roulette_by_rank: True},
+    early_stopping_rounds: 100,
+    num_islands: 6,
+    migration_topology: 'ring',
+    migration_interval: 30,
+    migration_rate: 0.1,
+    meta_prompting: True,
+    use_embedding: True,
+    use_map_elites: True,
+    num_inspirations: 3,
+    max_chat_depth: 3
+    max_chat_depth: 3
+}
+
+# --- MODEL ENSEMBLE (Hybrid: Poet + Engineer) ---
+ENSEMBLE: [
+    {
+        model_name: 'gemma3:4b',
+        temp: 0.85,
+        top_p: 0.95,
+        retries: 3,
+        weight: 0.3,
+        verify_ssl: False,
+    },
+    {
+        model_name: 'qwen3-coder:480b-cloud',
+        temp: 0.85,
+        top_p: 0.95,
+        retries: 3,
+        weight: 0.7,
+        verify_ssl: False,
+    }
+]
+
+# --- AUXILIARY MODELS ---
+SAMPLER_AUX_LM: {model_name: 'gemma3:4b', temp: 0.7, top_p: 0.95, retries: 3, weight: 1, verify_ssl: False}
+EMBEDDING: {model_name: 'qwen3-embedding:4b', retries: 3, verify_ssl: False}
+
+# --- MAP ELITES CONFIG (Optional) ---
+MAP_ELITES: {
+    elite_map_type: 'grid',
+    features: [
+        {name: 'feat1', min_val: 0, max_val: 1, num_bins: 10}
+    ]
+}

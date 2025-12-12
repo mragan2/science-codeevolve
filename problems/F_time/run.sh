@@ -49,13 +49,13 @@ CPU_LIST=""
 # Option 2: Use environment variables (RECOMMENDED)
 # Leave commented out to use existing environment variables
 # Or set them here to override:
-# export API_KEY="${API_KEY:-your-default-key}"
-# export API_BASE="${API_BASE:-https://api.openai.com/v1}"
+# export API_KEY="${API_KEY:1e28fb7fb3b5486e88cf34c33127ef71.hpbxvrNGSUlgNGFz6Mgp7q0Z}"
+# export API_BASE="${API_BASE:http://localhost:11434/v1}"
 
 # Option 3: Load from external file (MOST SECURE)
 # Create a file with: export API_KEY="..." and export API_BASE="..."
 # Then uncomment the line below:
-# source ~/.codeevolve_api_keys
+#source ~/.codeevolve_api_keys
 
 # ==================================
 # AUTOMATIC PATH SETUP - DO NOT EDIT
