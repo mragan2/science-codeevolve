@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import traceback
 from pathlib import Path
 from typing import Any, Dict, Mapping, Optional, List
 
@@ -50,8 +51,8 @@ def yes_no(question: str, default: bool = True) -> bool:
     while True:
         try:
             answer = input(f"{question} {suffix}: ").strip().lower()
-        except EOFError:
-            # If we hit EOF, return the default
+        except (EOFError, KeyboardInterrupt):
+            # If we hit EOF or interrupt, return the default
             print()
             return default
         if not answer:
@@ -525,5 +526,4 @@ if __name__ == "__main__":
         print("\n\n⚠️  Interrupted by user. Bye!")
     except Exception as exc:
         print(f"\n✖ Unexpected error: {exc}")
-        import traceback
         traceback.print_exc()
