@@ -38,6 +38,15 @@ MAP_ELITES: {elite_map_type: 'grid',
               {name: 'feat1', min_val: 0, max_val: 1, num_bins: 10}
              ]}
 
+CLIMATE:
+  enabled: False
+  seasons: [perpetual, monsoon, dry, polar]
+  season_length: 8
+  function_pool: [len, sum, min, max, sorted, enumerate, zip, range, map, filter]
+  hot_fraction: 0.5
+  survival_weight: 0.25
+  neutral_baseline: 0.5
+
 ADVERSARIAL:
   enabled: False
   teams: [red, blue]

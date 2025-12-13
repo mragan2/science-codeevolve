@@ -27,6 +27,7 @@ from codeevolve.adversarial import (
     should_cross_evaluate,
     update_team_registry,
 )
+from codeevolve.climate import ClimateConfig, evaluate_heat_resilience
 from codeevolve.agents import NovelAgent
 from codeevolve.database import EliteFeature, Program, ProgramDatabase
 from codeevolve.evaluator import Evaluator
@@ -115,8 +116,23 @@ async def evolve_loop(
             for field in AdversarialConfig.__dataclass_fields__
         }
     )
+
+    climate_cfg_raw: Dict[str, Any] = config.get("CLIMATE", {})
+    default_climate_cfg: ClimateConfig = ClimateConfig()
+    climate_cfg: ClimateConfig = ClimateConfig(
+        **{
+            field: climate_cfg_raw.get(field, getattr(default_climate_cfg, field))
+            for field in ClimateConfig.__dataclass_fields__
+        }
+    )
     team_name: str = isl_data.team or assign_team(isl_data.id, adversarial_cfg.teams)
     logger.info("Adversarial team: %s | cfg: %s", team_name, adversarial_cfg)
+    if climate_cfg.enabled:
+        logger.info(
+            "Climate seasons enabled (%s) with span=%s epochs",
+            climate_cfg.seasons,
+            climate_cfg.season_length,
+        )
 
     for epoch in range(start_epoch + 1, evolve_config["num_epochs"] + 1):
         logger.info(f"========= EPOCH {epoch} =========")
@@ -363,10 +379,45 @@ async def evolve_loop(
             ## EVALUATING CHILD PROGRAM
             evaluator.execute(child_sol)
             base_fitness: float = 0
+            climate_multiplier: float = 1.0
             if child_sol.returncode == 0:
                 base_fitness = child_sol.eval_metrics[evolve_config["fitness_key"]]
 
-            child_sol.fitness = base_fitness
+                if climate_cfg.enabled and child_sol.language.lower() == "python":
+                    climate_eval = evaluate_heat_resilience(
+                        code=child_sol.code,
+                        epoch=epoch,
+                        config=climate_cfg,
+                        random_state=sol_db.random_state,
+                    )
+                    climate_multiplier = climate_eval.fitness_multiplier
+                    child_sol.eval_metrics.update(
+                        {
+                            "climate_alignment": climate_eval.alignment,
+                            "climate_survival_chance": climate_eval.survival_chance,
+                            "climate_multiplier": climate_multiplier,
+                            "climate_season_index": climate_eval.season.index,
+                            "climate_is_hot": 1.0
+                            if climate_eval.season.climate == "hot"
+                            else 0.0,
+                            "climate_hot_hits": climate_eval.hot_hits,
+                            "climate_cold_hits": climate_eval.cold_hits,
+                        }
+                    )
+                    logger.info(
+                        (
+                            "Climate season '%s' (%s) multiplier %.3f | alignment=%.3f,"
+                            " hot_hits=%d, cold_hits=%d"
+                        ),
+                        climate_eval.season.name,
+                        climate_eval.season.climate,
+                        climate_multiplier,
+                        climate_eval.alignment,
+                        climate_eval.hot_hits,
+                        climate_eval.cold_hits,
+                    )
+
+            child_sol.fitness = base_fitness * climate_multiplier
             child_sol.prog_msg = format_prog_msg(prog=child_sol)
             child_sol.features = child_sol.eval_metrics
 
