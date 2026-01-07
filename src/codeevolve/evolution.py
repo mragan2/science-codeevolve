@@ -852,6 +852,12 @@ async def codeevolve(args: Dict[str, Any], isl_data: IslandData, global_data: Gl
         config: Dict[str, Any] = yaml.safe_load(f)
     evolve_config = config["EVOLVE_CONFIG"]
 
+    # ===== ISLAND SEED =====
+    base_seed: Optional[int] = config.get("SEED", None)
+    island_seed: Optional[int] = base_seed + isl_data.id if base_seed is not None else None
+    if island_seed is not None:
+        np.random.seed(island_seed)
+
     # ===== ENSEMBLES =====
     exploration_ensemble: LMEnsemble = LMEnsemble(
         models_cfg=config.get("EXPLORATION_ENSEMBLE", config.get("ENSEMBLE")),
@@ -934,16 +940,17 @@ async def codeevolve(args: Dict[str, Any], isl_data: IslandData, global_data: Gl
                 )
 
         # ===== DATABASE INITIALIZATION =====
+
         prompt_db: ProgramDatabase = ProgramDatabase(
             id=isl_data.id,
-            seed=config.get("SEED", None),
+            seed=island_seed,
             max_alive=evolve_config.get("max_size", None),
             elite_map_type=None,
             features=None,
         )
         sol_db: ProgramDatabase = ProgramDatabase(
             id=isl_data.id,
-            seed=config.get("SEED", None),
+            seed=island_seed,
             max_alive=evolve_config.get("max_size", None),
             elite_map_type=map_elites_cfg.get("elite_map_type", None),
             features=features,

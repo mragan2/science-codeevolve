@@ -2,7 +2,7 @@
 
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![arxiv](https://img.shields.io/badge/arxiv-arxiv.2510.14150-red)](https://arxiv.org/abs/2510.14150)
-[![version](https://img.shields.io/badge/version-v0.2.0-green)](v0.2.0)
+[![version](https://img.shields.io/badge/version-v0.2.1-green)](v0.2.1)
 
 <img src='assets/codeevolve_diagram.png' align="center" width=900 />
 
@@ -66,7 +66,7 @@ This companion repository contains all code necessary to reproduce the results f
 We organize the different versions of CodeEvolve as releases in both this repository and its companion experiments repository. Currently, we have the following releases:
 
 1. `v0.1.0`: This is the initial version of CodeEvolve, and can be used to access/reproduce the results from the v1 version of our technical report.
-2. `v0.2.0`: This is the most recent version of CodeEvolve, and can be used to access/reproduce the results from the v3 version of our technical report.
+2. `v0.2.0`: This is the most recent release of CodeEvolve, and can be used to access/reproduce the results from the v3 version of our technical report.
 
 ## Quick Start
 
