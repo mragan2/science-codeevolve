@@ -4,8 +4,6 @@
 [![arxiv](https://img.shields.io/badge/arxiv-arxiv.2510.14150-red)](https://arxiv.org/abs/2510.14150)
 [![version](https://img.shields.io/badge/version-v0.2.1-green)](v0.2.1)
 
-<img src='assets/codeevolve_diagram.png' align="center" width=900 />
-
 **An open-source framework that combines large language models with evolutionary algorithms to discover and optimize high-performing code solutions.**
 
 CodeEvolve democratizes algorithmic discovery by making LLM-driven evolutionary search transparent, reproducible, and accessible. Whether you're tackling combinatorial optimization, discovering novel algorithms, or optimizing computational kernels, CodeEvolve provides a modular foundation for automated code synthesis guided by quantifiable metrics.
@@ -33,6 +31,7 @@ CodeEvolve democratizes algorithmic discovery by making LLM-driven evolutionary 
 **Designed for real problems.** CodeEvolve addresses meta-optimization tasks where you need to discover programs that solve complex optimization problems—from mathematical constructions to scientific discovery.
 
 ## Key Features
+<img src='assets/codeevolve_diagram.png' align="center" width=1000 />
 
 ### Islands-based Genetic Algorithm
 
@@ -64,13 +63,13 @@ CodeEvolve operates as a distributed evolutionary algorithm where code itself is
 
 1. **Initialization**: Start with an initial code template and system prompt that defines the task
 
-2. **Selection**: Choose parent programs based on fitness
+2. **Selection**: Choose parent and inspiration programs based on fitness
    - **Exploration mode**: Random or uniform selection for broad search
    - **Exploitation mode**: Tournament or roulette selection for refinement
 
 3. **Variation**: Generate new candidates through LLM-driven operations
    - **Exploration**: Broad modifications with meta-prompting
-   - **Exploitation**: Targeted improvements with conversation history and inspiration programs
+   - **Exploitation**: Targeted improvements with conversation history
 
 4. **Code Generation**: LLM produces SEARCH/REPLACE diffs
    - Only specified code blocks are modified (between markers)
@@ -88,7 +87,7 @@ CodeEvolve operates as a distributed evolutionary algorithm where code itself is
 
 7. **Archiving** (optional): MAP-Elites maintains diverse solutions
    - Preserves behavioral variety
-   - Enables multi-objective optimization
+   - Increases diversity in a multi-objective setting
 
 ### Exploration vs Exploitation
 
@@ -96,12 +95,12 @@ The system dynamically balances exploration and exploitation:
 
 | Phase | Selection | LLM Context | Operators |
 |-------|-----------|-------------|-----------|
-| **Exploration** | Random/uniform | No history | Meta-prompting enabled, no inspirations |
-| **Exploitation** | Tournament/fitness | Full lineage | Inspiration programs, deep conversation |
+| **Exploration** | Random | Random Inspirations | Meta-prompting exploration |
+| **Exploitation** | Fitness | Best Inspirations + Full lineage | Depth exploitation |
 
 The exploration rate is controlled by a scheduler (e.g., exponential decay) and can adapt based on fitness improvements.
 
-### Distributed Islands Architecture
+### Distributed Islands
 
 ```
 ┌─────────┐     ┌─────────┐     ┌─────────┐
@@ -114,26 +113,10 @@ The exploration rate is controlled by a scheduler (e.g., exponential decay) and 
         
 Each island maintains:
 - Solution population
-- Prompt population (if meta-prompting enabled)
+- Prompt population
 - Local fitness rankings
 - Migration history
 ```
-
-## Architecture
-
-CodeEvolve operates through an iterative process at each epoch:
-
-1. **Population Management:** Each island maintains populations of prompts and solutions, evaluated against user-defined fitness metrics
-
-2. **Evolutionary Operators:** Generate new candidates through crossover, mutation, and meta-prompting
-
-3. **LLM Ensemble:** Transforms operator instructions into executable code modifications via structured SEARCH/REPLACE diffs
-
-4. **Selection & Migration:** Top performers are retained and periodically migrated between islands
-
-5. **Archive:** MAP-Elites-based archive preserves behavioral diversity across the search
-
-Execution feedback and fitness signals guide the entire loop, translating LLM proposals into testable, executable artifacts.
 
 ### Core Components
 
@@ -295,10 +278,12 @@ ENSEMBLE:
   - model_name: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
     temp: 0.8
     weight: 1
+    seed: 42
 
 SAMPLER_AUX_LM:
   model_name: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
   temp: 0.7
+  seed: 42
 
 EVOLVE_CONFIG:
   num_epochs: 50
@@ -387,7 +372,7 @@ This companion repository contains all code necessary to reproduce the results f
 - Experimental configurations for each problem
 - Raw results and checkpoints from paper runs
 - Analysis notebooks with visualizations
-- Statistical comparisons with AlphaEvolve
+- Comparisons with AlphaEvolve
 
 ## Documentation
 
