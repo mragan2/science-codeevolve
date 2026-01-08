@@ -188,6 +188,8 @@ export API_KEY=your_api_key_here
 export API_BASE=your_api_base_url
 ```
 
+> `API_BASE` must point to an **OpenAI-compatible** API base URL (hosted provider, gateway, or local inference server).
+
 Run CodeEvolve via the command line:
 
 ```bash
@@ -200,7 +202,7 @@ codeevolve \
 ```
 
 **Arguments:**
-- `--inpt_dir`: Directory containing initial solution and evaluation script
+- `--inpt_dir`: Directory containing the evaluation script and the initial codebase (typically a benchmark `input/` folder)
 - `--cfg_path`: Path to YAML configuration file (required for new runs)
 - `--out_dir`: Directory where results will be saved
 - `--load_ckpt`: Checkpoint to load (0 for new run, -1 for latest, or specific epoch)
@@ -360,7 +362,20 @@ The framework is suitable for any domain where solutions can be represented as c
 - Automatic parallelization strategies
 - Resource allocation optimization
 
-## Reproducing Research Results
+## Reproducibility & Determinism
+
+CodeEvolve is designed to be **seedable for all internal algorithmic decisions** (selection, scheduling, migration, etc.). However, **exact end-to-end reproducibility depends on your LLM provider**:
+
+- **Framework-level seeding**:
+  - Set `SEED` in the YAML config to seed internal randomness.
+  - In multi-island runs, each island derives a deterministic island seed (`SEED + island_id`) for its local stochastic decisions.
+- **LLM seeding**:
+  - Model configs can include a `seed` field, and CodeEvolve forwards it to OpenAI-compatible APIs.
+  - Some providers do **not** support deterministic sampling and may ignore `seed` or still return nondeterministic outputs.
+
+For hosted LLM APIs, treat results as **statistical**—run multiple seeds and compare distributions. If you use a fully controlled inference stack that supports deterministic decoding, you may get much closer to exact replay.
+
+## Experiments on benchmarks
 
 For complete experimental configurations, benchmark implementations, and step-by-step examples demonstrating how to run CodeEvolve on various problems, visit our experiments repository:
 
