@@ -164,7 +164,7 @@ CodeEvolve demonstrates superior performance on several benchmarks previously us
 - **Open-weight models** (e.g., Qwen) matching closed-source performance at significantly lower cost
 - **Extensive ablations** quantifying each component's contribution to search efficiency
 
-For comprehensive evaluation details and specific results, see our [technical report](https://arxiv.org/abs/2510.14150).
+For comprehensive evaluation details and specific results, see our [paper](https://arxiv.org/abs/2510.14150).
 
 ## Quick Start
 
@@ -366,7 +366,7 @@ For complete experimental configurations, benchmark implementations, and step-by
 
 **[github.com/inter-co/science-codeevolve-experiments](https://github.com/inter-co/science-codeevolve-experiments)**
 
-This companion repository contains all code necessary to reproduce the results from our [technical report](https://arxiv.org/abs/2510.14150), including:
+This companion repository contains all code necessary to reproduce the results from our [paper](https://arxiv.org/abs/2510.14150), including:
 
 - All benchmark problem implementations
 - Experimental configurations for each problem
@@ -458,8 +458,8 @@ output_directory/
 
 We organize the different versions of CodeEvolve as releases in both this repository and its companion experiments repository. Currently, we have the following releases:
 
-1. **v0.1.0**: Initial version of CodeEvolve, corresponds to v1 of technical report
-2. **v0.2.0** / **v0.2.1**: Most recent release, corresponds to v3 of technical report with minor bug fixes
+1. **v0.1.0**: Initial version of CodeEvolve, corresponds to v1 of our [paper](https://arxiv.org/abs/2510.14150).
+2. **v0.2.0** / **v0.2.1**: Most recent release, corresponds to v3 of our [paper](https://arxiv.org/abs/2510.14150) with minor bug fixes.
 
 ## Contributing
 
