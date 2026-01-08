@@ -8,6 +8,8 @@ INIT_FILE_DATA: {filename: 'init_program.py', language: 'python'}
 EVAL_FILE_NAME: 'evaluate.py'
 EVAL_TIMEOUT: 60
 
+SEED: 42
+
 MAX_MEM_BYTES: 1000000000
 MEM_CHECK_INTERVAL_S: 0.1
 
@@ -30,8 +32,6 @@ EXPLORATION_ENSEMBLE: [{model_name: 'AWS_QWEN-QWEN3-CODER-30B-INSTRUCT', temp: 0
 EXPLOITATION_ENSEMBLE: [{model_name: 'AWS_QWEN-QWEN3-CODER-30B-INSTRUCT', temp: 0.7, top_p: 0.8, retries: 3, weight: 1, verify_ssl: False}]
 
 SAMPLER_AUX_LM : {model_name: 'AWS_QWEN-QWEN3-CODER-30B-INSTRUCT', temp: 0.7, top_p: 0.8, retries: 3, weight: 1, verify_ssl: False}
-
-EMBEDDING: {model_name: 'AZURE_TEXT-EMBEDDING-3-SMALL', retries: 3, verify_ssl: False, dimensions: 128}
 
 MAP_ELITES: {elite_map_type: 'grid',
              features: [
