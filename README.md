@@ -164,7 +164,7 @@ CodeEvolve demonstrates superior performance on several benchmarks previously us
 - **Open-weight models** (e.g., Qwen) matching closed-source performance at significantly lower cost
 - **Extensive ablations** quantifying each component's contribution to search efficiency
 
-For comprehensive evaluation details and specific results, see our [paper](https://arxiv.org/abs/2510.14150).
+For comprehensive evaluation details and specific results, see CodeEvolve's [paper](https://arxiv.org/abs/2510.14150).
 
 ## Quick Start
 
@@ -202,7 +202,7 @@ codeevolve \
 ```
 
 **Arguments:**
-- `--inpt_dir`: Directory containing the evaluation script and the initial codebase (typically a benchmark `input/` folder)
+- `--inpt_dir`: Directory containing the evaluation script and the initial codebase
 - `--cfg_path`: Path to YAML configuration file (required for new runs)
 - `--out_dir`: Directory where results will be saved
 - `--load_ckpt`: Checkpoint to load (0 for new run, -1 for latest, or specific epoch)
@@ -377,11 +377,11 @@ For hosted LLM APIs, treat results as **statistical**—run multiple seeds and c
 
 ## Experiments on benchmarks
 
-For complete experimental configurations, benchmark implementations, and step-by-step examples demonstrating how to run CodeEvolve on various problems, visit our experiments repository:
+For complete experimental configurations, benchmark implementations, and step-by-step examples demonstrating how to run CodeEvolve on various problems, visit the experiments repository:
 
 **[github.com/inter-co/science-codeevolve-experiments](https://github.com/inter-co/science-codeevolve-experiments)**
 
-This companion repository contains all code necessary to reproduce the results from our [paper](https://arxiv.org/abs/2510.14150), including:
+This companion repository contains all code necessary to reproduce the results from CodeEvolve's [paper](https://arxiv.org/abs/2510.14150), including:
 
 - All benchmark problem implementations
 - Experimental configurations for each problem
@@ -473,8 +473,8 @@ output_directory/
 
 We organize the different versions of CodeEvolve as releases in both this repository and its companion experiments repository. Currently, we have the following releases:
 
-1. **v0.1.0**: Initial version of CodeEvolve, corresponds to v1 of our [paper](https://arxiv.org/abs/2510.14150).
-2. **v0.2.0** / **v0.2.1**: Most recent release, corresponds to v3 of our [paper](https://arxiv.org/abs/2510.14150) with minor bug fixes.
+1. **v0.1.0**: Initial version of CodeEvolve, corresponds to v1 of of CodeEvolve's [paper](https://arxiv.org/abs/2510.14150).
+2. **v0.2.0** / **v0.2.1**: Most recent release, corresponds to v3 of of CodeEvolve's [paper](https://arxiv.org/abs/2510.14150) with minor bug fixes.
 
 ## Contributing
 
@@ -504,9 +504,6 @@ Please refer to `CONTRIBUTING.md` for detailed guidelines.
 - **Bug fixes** and test coverage
 
 ## Citation
-
-If you use CodeEvolve in your research, please cite our paper:
-
 ```bibtex
 @article{assumpção2025codeevolveopensourceevolutionary,
       title={CodeEvolve: An open source evolutionary coding agent for algorithm discovery and optimization},
