@@ -1,10 +1,16 @@
 # CodeEvolve
+<div align="center">
 
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![arxiv](https://img.shields.io/badge/arxiv-arxiv.2510.14150-red)](https://arxiv.org/abs/2510.14150)
-[![version](https://img.shields.io/badge/version-v0.2.1-green)](v0.2.1)
+<img src="assets/codeevolve_logo.png" alt="CodeEvolve Logo" width="400">
+<p align="center">
+  <img src="https://img.shields.io/badge/version-v0.2.1-green" alt="v0.2.1"></a>
+  <a href="https://arxiv.org/abs/2510.14150"><img src="https://img.shields.io/badge/arxiv-2510.14150-red" alt="Arxiv"></a>
+  <a href="https://github.com/inter-co/science-codeevolve/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
+</p>
 
 **An open-source framework that combines large language models with evolutionary algorithms to discover and optimize high-performing code solutions.**
+
+</div>
 
 CodeEvolve democratizes algorithmic discovery by making LLM-driven evolutionary search transparent, reproducible, and accessible. Whether you're tackling combinatorial optimization, discovering novel algorithms, or optimizing computational kernels, CodeEvolve provides a modular foundation for automated code synthesis guided by quantifiable metrics.
 
