@@ -11,11 +11,11 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-PROB_NAME="bounce_cosmology"
+PROB_NAME="torsion_problem"
 BASE_DIR="problems/${PROB_NAME}"
 INPT_DIR="${BASE_DIR}/input"
 CFG_PATH="${BASE_DIR}/configs/config.yaml"
-OUT_DIR="experiments/${PROB_NAME}/phase_2_v2"
+OUT_DIR="experiments/${PROB_NAME}/run_1"
 LOAD_CKPT="0"
 CPU_LIST="0-7"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

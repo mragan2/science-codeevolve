@@ -7,7 +7,7 @@ import sys
 
 # 1. SETUP: Where to look?
 SEARCH_DIRS = [
-    "experiments/bounce_cosmology/run_1"
+    "experiments/bounce_cosmology/phase_2_v2"
 ]
 EVALUATOR_SCRIPT = "/home/rag/Projects/science-codeevolve/problems/bounce_cosmology/input/evaluate.py"
 

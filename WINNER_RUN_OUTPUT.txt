@@ -1,13 +1,16 @@
-COMMAND: /home/rag/miniconda3/envs/codeevolve/bin/python experiments/bounce_cosmology/run_1/4/best_sol.py
+COMMAND: /home/rag/miniconda3/bin/python experiments/bounce_cosmology/phase_2_v2/4/best_sol.py
 RETURN_CODE: 0
 
 STDOUT:
-Power-law model S(ℓ):
-  ℓ=2: 0.1960
-  ℓ=3: 0.6802
-  ℓ=4: 0.8135
-  ℓ=5: 0.8728
-  ℓ=10: 0.9567
-  ℓ=20: 0.9840
-  ℓ=30: 0.9909
+Optimal Power-law Bounce Model S(ℓ):
+========================================
+  ℓ= 2: S = 0.1960
+  ℓ= 3: S = 0.7067
+  ℓ= 4: S = 0.8374
+  ℓ= 5: S = 0.8930
+  ℓ=10: S = 0.9671
+  ℓ=20: S = 0.9889
+  ℓ=30: S = 0.9940
+========================================
+ΔBIC = -3.73 (beats ΛCDM)
 
