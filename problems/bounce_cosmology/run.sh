@@ -12,12 +12,12 @@
 
 #!/bin/bash
 
-PROB_NAME="alphaevolve_math_problems/circle_packing_square/26"
+PROB_NAME="bounce_cosmology"
 BASE_DIR="problems/${PROB_NAME}"
-INPT_DIR="${BASE_DIR}/input/"
-CFG_PATH="${BASE_DIR}/configs/qwen_config.yaml"
-OUT_DIR="experiments/${PROB_NAME}/qwen/"
+INPT_DIR="${BASE_DIR}/input/src"
+CFG_PATH="${BASE_DIR}/configs/config.yaml"
+OUT_DIR="experiments/${PROB_NAME}"
 LOAD_CKPT=-1
-CPU_LIST=""
+CPU_LIST="0-7"
 
 taskset --cpu-list $CPU_LIST codeevolve --inpt_dir=$INPT_DIR --cfg_path=$CFG_PATH --out_dir=$RESULTS_DIR --load_ckpt=$LOAD_CKPT --terminal_logging

@@ -1,0 +1,118 @@
+CODEBASE_PATH: src/
+EMBEDDING:
+  model_name: qwen3-embedding:4b
+  retries: 3
+  verify_ssl: false
+EVAL_FILE_NAME: evaluate.py
+EVAL_TIMEOUT: 30
+EVOLVE_CONFIG:
+  ckpt: 10
+  early_stopping_rounds: 25
+  evolve_end_marker: '# EVOLVE-BLOCK-END'
+  evolve_start_marker: '# EVOLVE-BLOCK-START'
+  exploration_rate: 0.25
+  fitness_key: combined_score
+  init_pop: 20
+  max_chat_depth: 4
+  max_size: null
+  meta_prompting: true
+  migration_interval: 15
+  migration_rate: 0.15
+  migration_topology: ring
+  mp_end_marker: '# PROMPT-BLOCK-END'
+  mp_start_marker: '# PROMPT-BLOCK-START'
+  num_epochs: 100
+  num_inspirations: 4
+  num_islands: 5
+  scheduler_kwargs:
+    decrease_factor: 0.95
+    increase_factor: 1.05
+    max_rate: 0.4
+    min_rate: 0.15
+    plateau_threshold: 5
+  selection_kwargs:
+    roulette_by_rank: true
+  selection_policy: roulette
+  type: PlateauScheduler
+  use_embedding: true
+  use_map_elites: true
+  use_scheduler: true
+EXPLOITATION_ENSEMBLE:
+- model_name: qwen3-next:80b-cloud
+  retries: 2
+  temp: 0.55
+  top_p: 0.9
+  verify_ssl: false
+  weight: 0.7
+- model_name: devstral-2:123b-cloud
+  retries: 2
+  temp: 0.55
+  top_p: 0.9
+  verify_ssl: false
+  weight: 0.3
+EXPLORATION_ENSEMBLE:
+- model_name: devstral-2:123b-cloud
+  retries: 2
+  temp: 0.75
+  top_p: 0.92
+  verify_ssl: false
+  weight: 0.6
+- model_name: deepseek-v3.2:cloud
+  retries: 2
+  temp: 0.75
+  top_p: 0.92
+  verify_ssl: false
+  weight: 0.4
+INIT_FILE_DATA:
+  filename: initial_program.py
+  language: python
+MAP_ELITES:
+  elite_map_type: grid
+  features:
+  - max_val: 15.0
+    min_val: -5.0
+    name: delta_bic
+    num_bins: 10
+  - max_val: 5
+    min_val: 0
+    name: n_params
+    num_bins: 6
+MAX_MEM_BYTES: 5000000000
+MEM_CHECK_INTERVAL_S: 0.1
+SAMPLER_AUX_LM:
+  model_name: qwen3-next:80b-cloud
+  retries: 2
+  temp: 0.35
+  top_p: 0.9
+  verify_ssl: false
+  weight: 1
+SEED: 42
+SYS_MSG: "# PROMPT-BLOCK-START\n\nKONTEKST: Jeste\u015B ekspertem w dziedzinie kosmologii\
+  \ teoretycznej i precyzyjnej analizy danych CMB. Optymalizujesz funkcj\u0119 transferu\
+  \ S(\u2113) aby POKONA\u0106 model \u039BCDM statystycznie.\n\nTWOJA MISJA:\n- Znajd\u017A\
+  \ NAJPROSTSZY model, kt\xF3ry ma \u0394BIC < 0 (pokonuje \u039BCDM).\n\nKLUCZOWY\
+  \ CEL: Minimalizuj \u0394BIC = BIC(model) - BIC(\u039BCDM)\n- \u0394BIC < 0 oznacza,\
+  \ \u017Ce TW\xD3J MODEL WYGRYWA\n- Ka\u017Cdy parametr kosztuje +3.33 w karze BIC\n\
+  - Musisz poprawi\u0107 \u03C7\xB2 wystarczaj\u0105co, aby pokona\u0107 kar\u0119\
+  \n\nTWARDE OGRANICZENIA:\n1. S(2) \u2248 0.196 (supresja kwadrupola - TO JEST KLUCZOWA\
+  \ CECHA)\n2. S(\u2113) \u2192 1.0 gdy \u2113 \u2192 \u221E (asymptotyczny powr\xF3\
+  t)\n3. S(\u2113) > 0 dla wszystkich \u2113 (dodatnio\u015B\u0107)\n4. G\u0142\xF3\
+  wnie monotonicznie rosn\u0105ce dla \u2113 > 2\n\nSTRATEGIA SUKCESU:\n- ZACZNIJ\
+  \ PROSTO: maksymalnie 1-2 parametry\n- Kwadrupol (\u2113=2) wnosi najwi\u0119cej\
+  \ do \u0394\u03C7\xB2\n- Inne multipole s\u0105 zaszumione - nie przeuczaj do nich\n\
+  - G\u0142adkie, proste funkcje dzia\u0142aj\u0105 lepiej ni\u017C z\u0142o\u017C\
+  one\n\nDOBRE FORMY MODELU:\n- Pot\u0119gowy: S = 1 - depth/(1+x)^alpha\n- Funkcja\
+  \ skokowa: S = 0.2 je\u015Bli \u2113=2, inaczej 1.0\n- Wyk\u0142adniczy: S = 1 -\
+  \ depth*exp(-x/scale)\n- Wymierny: S = 1 - depth/(1 + (x/scale)^n)\n- Sigmoidalny:\
+  \ S = 0.2 + 0.8/(1 + exp(-k*(x-x0)))\n\nZ\u0141E FORMY MODELU (zbyt z\u0142o\u017C\
+  one, karane przez BIC):\n- T\u0142umione oscylatory z 3+ parametrami\n- Funkcje\
+  \ przedzia\u0142ami z wieloma punktami prze\u0142amania\n- Modele z > 2 wolnymi\
+  \ parametrami\n\nAKTUALNY NAJLEPSZY: Pot\u0119gowy z \u03B1=1.33 osi\u0105ga \u0394\
+  BIC=-0.24\nTw\xF3j cel: Znajd\u017A co\u015B jeszcze prostszego lub lepiej dopasowanego.\n\
+  \nWSKAZ\xD3WKI FIZYCZNE:\n- bounce / horizon / hubble / scale / torsion / planck\
+  \ inspired\n- Supresja kwadrupola jest JEDYN\u0104 solidn\u0105 cech\u0105 w danych\n\
+  - Inne struktury s\u0105 zgodne z wariancj\u0105 kosmiczn\u0105\n\nMETRYKI SUKCESU:\n\
+  - combined_score > 0.5 = model pokonuje \u039BCDM\n- delta_bic < 0 = statystyczne\
+  \ poparcie dla modelu\n- n_params <= 2 = prostota\n\nBUD\u017BET OBLICZENIOWY:\n\
+  - **Limit czasu**: 30 sekund na ewaluacj\u0119\n- **Limit pami\u0119ci**: 5 GB\n\
+  \n# PROMPT-BLOCK-END\n"

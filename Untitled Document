@@ -1,0 +1,100 @@
+import os
+import glob
+import pickle
+import sys
+
+# CHANGE THIS to match the path to your run folder
+RUN_DIR = "experiments/bounce_cosmology/run_mr2"
+
+def scan_islands():
+    # Find all numbered island directories (0, 1, 2, etc.)
+    island_paths = glob.glob(os.path.join(RUN_DIR, "*"))
+    island_paths = [p for p in island_paths if os.path.isdir(p) and os.path.basename(p).isdigit()]
+    
+    if not island_paths:
+        print(f"❌ No island directories found in {RUN_DIR}")
+        return
+
+    print(f"🔎 Scanning {len(island_paths)} islands in: {RUN_DIR}\n")
+    print(f"{'ISLAND':<10} | {'FITNESS':<12} | {'STATUS'}")
+    print("-" * 40)
+
+    global_best_prog = None
+    global_best_fitness = -1.0
+    global_best_island = -1
+
+    for island_path in sorted(island_paths, key=lambda x: int(os.path.basename(x))):
+        island_id = os.path.basename(island_path)
+        
+        # Look for the latest checkpoint pickle in this island folder
+        checkpoints = glob.glob(os.path.join(island_path, "*.pkl")) + \
+                      glob.glob(os.path.join(island_path, "checkpoints", "*.pkl"))
+        
+        if not checkpoints:
+            print(f"{island_id:<10} | {'---':<12} | No checkpoint found")
+            continue
+            
+        # Get the most recent file
+        latest_ckpt = max(checkpoints, key=os.path.getctime)
+        
+        try:
+            with open(latest_ckpt, "rb") as f:
+                data = pickle.load(f)
+
+            # Robustly find the program database inside the pickle
+            if hasattr(data, "sol_db"): db = data.sol_db
+            elif isinstance(data, dict) and "sol_db" in data: db = data["sol_db"]
+            else: db = data  # Maybe the pickle IS the db
+
+            # Find best in this specific island
+            local_best = None
+            local_max = -1.0
+            
+            # extract candidates
+            candidates = []
+            if hasattr(db, "programs"): candidates = db.programs.values()
+            elif isinstance(db, dict): candidates = db.values()
+            elif isinstance(db, list): candidates = db
+            
+            for p in candidates:
+                fit = getattr(p, "fitness", -1.0)
+                if fit is not None and fit > local_max:
+                    local_max = fit
+                    local_best = p
+
+            # Report local results
+            if local_best:
+                print(f"{island_id:<10} | {local_max:.6f}     | OK")
+                
+                # Update GLOBAL tracking
+                if local_max > global_best_fitness:
+                    global_best_fitness = local_max
+                    global_best_prog = local_best
+                    global_best_island = island_id
+            else:
+                print(f"{island_id:<10} | {'0.000000':<12} | Empty DB")
+
+        except Exception as e:
+            print(f"{island_id:<10} | {'Error':<12} | {str(e)[:20]}...")
+
+    # --- FINAL RESULT ---
+    print("-" * 40)
+    if global_best_prog:
+        print(f"\n🏆 GLOBAL WINNER FOUND IN ISLAND [{global_best_island}]")
+        print(f"   Fitness: {global_best_fitness:.8f}")
+        
+        # Extract Code
+        code = getattr(global_best_prog, "str_code", None) or getattr(global_best_prog, "code", None)
+        
+        if code:
+            outfile = "GLOBAL_BEST_SOL.py"
+            with open(outfile, "w") as f:
+                f.write(code)
+            print(f"   💾 Saved code to: {outfile}")
+        else:
+            print("   ❌ Error: Could not extract source code string from program object.")
+    else:
+        print("\n❌ No valid solutions found in any island.")
+
+if __name__ == "__main__":
+    scan_islands()

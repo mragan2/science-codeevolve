@@ -1,0 +1,103 @@
+SYS_MSG: |
+  # PROMPT-BLOCK-START
+  
+  KONTEKST: Jesteś ekspertem w dziedzinie kosmologii teoretycznej i precyzyjnej analizy danych CMB. Optymalizujesz funkcję transferu S(ℓ) aby POKONAĆ model ΛCDM statystycznie.
+  
+  TWOJA MISJA:
+  - Znajdź NAJPROSTSZY model, który ma ΔBIC < 0 (pokonuje ΛCDM).
+  
+  KLUCZOWY CEL: Minimalizuj ΔBIC = BIC(model) - BIC(ΛCDM)
+  - ΔBIC < 0 oznacza, że TWÓJ MODEL WYGRYWA
+  - Każdy parametr kosztuje +3.33 w karze BIC
+  - Musisz poprawić χ² wystarczająco, aby pokonać karę
+  
+  TWARDE OGRANICZENIA:
+  1. S(2) ≈ 0.196 (supresja kwadrupola - TO JEST KLUCZOWA CECHA)
+  2. S(ℓ) → 1.0 gdy ℓ → ∞ (asymptotyczny powrót)
+  3. S(ℓ) > 0 dla wszystkich ℓ (dodatniość)
+  4. Głównie monotonicznie rosnące dla ℓ > 2
+  
+  STRATEGIA SUKCESU:
+  - ZACZNIJ PROSTO: maksymalnie 1-2 parametry
+  - Kwadrupol (ℓ=2) wnosi najwięcej do Δχ²
+  - Inne multipole są zaszumione - nie przeuczaj do nich
+  - Gładkie, proste funkcje działają lepiej niż złożone
+  
+  DOBRE FORMY MODELU:
+  - Potęgowy: S = 1 - depth/(1+x)^alpha
+  - Funkcja skokowa: S = 0.2 jeśli ℓ=2, inaczej 1.0
+  - Wykładniczy: S = 1 - depth*exp(-x/scale)
+  - Wymierny: S = 1 - depth/(1 + (x/scale)^n)
+  - Sigmoidalny: S = 0.2 + 0.8/(1 + exp(-k*(x-x0)))
+  
+  ZŁE FORMY MODELU (zbyt złożone, karane przez BIC):
+  - Tłumione oscylatory z 3+ parametrami
+  - Funkcje przedziałami z wieloma punktami przełamania
+  - Modele z > 2 wolnymi parametrami
+  
+  AKTUALNY NAJLEPSZY: Potęgowy z α=1.33 osiąga ΔBIC=-0.24
+  Twój cel: Znajdź coś jeszcze prostszego lub lepiej dopasowanego.
+  
+  WSKAZÓWKI FIZYCZNE:
+  - bounce / horizon / hubble / scale / torsion / planck inspired
+  - Supresja kwadrupola jest JEDYNĄ solidną cechą w danych
+  - Inne struktury są zgodne z wariancją kosmiczną
+  
+  METRYKI SUKCESU:
+  - combined_score > 0.5 = model pokonuje ΛCDM
+  - delta_bic < 0 = statystyczne poparcie dla modelu
+  - n_params <= 2 = prostota
+
+  BUDŻET OBLICZENIOWY:
+  - **Limit czasu**: 30 sekund na ewaluację
+  - **Limit pamięci**: 5 GB
+
+  # PROMPT-BLOCK-END
+
+CODEBASE_PATH: "src/"
+INIT_FILE_DATA: {filename: "init_program.py", language: "python"}
+EVAL_FILE_NAME: "evaluate.py"
+EVAL_TIMEOUT: 30
+
+SEED: 42
+
+MAX_MEM_BYTES: 5000000000
+MEM_CHECK_INTERVAL_S: 0.1
+
+EVOLVE_CONFIG: {fitness_key: "combined_score",
+                num_epochs: 100, ckpt: 10, max_size: null, init_pop: 20,
+                exploration_rate: 0.25,
+                selection_policy: roulette, selection_kwargs: {roulette_by_rank: True},
+                early_stopping_rounds: 25,
+                num_islands: 5, migration_topology: ring, migration_interval: 15, migration_rate: 0.15,
+                # ENABLED: Let LLM evolve its own prompts for diverse functional forms
+                meta_prompting: True,
+                use_embedding: True, use_map_elites: True,
+                num_inspirations: 4,
+                max_chat_depth: 4,
+                mp_start_marker: "# PROMPT-BLOCK-START", mp_end_marker: "# PROMPT-BLOCK-END",
+                evolve_start_marker: "# EVOLVE-BLOCK-START", evolve_end_marker: "# EVOLVE-BLOCK-END",
+                use_scheduler: True, type: PlateauScheduler, scheduler_kwargs: {min_rate: 0.15, max_rate: 0.40, plateau_threshold: 5, increase_factor: 1.05, decrease_factor: 0.95}
+                }
+
+EXPLORATION_ENSEMBLE:
+  - {model_name: "devstral-2:123b-cloud", temp: 0.75, top_p: 0.92, retries: 2, weight: 0.6, verify_ssl: False}
+  - {model_name: "deepseek-v3.2:cloud",    temp: 0.75, top_p: 0.92, retries: 2, weight: 0.4, verify_ssl: False}
+
+EXPLOITATION_ENSEMBLE:
+  - {model_name: "qwen3-next:80b-cloud",   temp: 0.55, top_p: 0.90, retries: 2, weight: 0.7, verify_ssl: False}
+  - {model_name: "devstral-2:123b-cloud",  temp: 0.55, top_p: 0.90, retries: 2, weight: 0.3, verify_ssl: False}
+
+SAMPLER_AUX_LM:
+  {model_name: "qwen3-next:80b-cloud", temp: 0.35, top_p: 0.90, retries: 2, weight: 1, verify_ssl: False}
+
+EMBEDDING:
+  {model_name: "qwen3-embedding:4b", retries: 3, verify_ssl: False}
+
+# MAP ELITES: Explore trade-off between evidence strength (ΔBIC) and simplicity (n_params)
+MAP_ELITES: {elite_map_type: "grid",
+             features: [
+              {name: "delta_bic", min_val: -5.0, max_val: 15.0, num_bins: 10},
+              {name: "n_params", min_val: 0, max_val: 5, num_bins: 6},
+             ]
+}
