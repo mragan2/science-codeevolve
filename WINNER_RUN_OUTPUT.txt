@@ -1,16 +1,31 @@
-COMMAND: /home/rag/miniconda3/bin/python experiments/bounce_cosmology/phase_2_v2/4/best_sol.py
+COMMAND: /home/rag/miniconda3/bin/python experiments/torsion_problem/run_1/4/best_sol.py
 RETURN_CODE: 0
 
 STDOUT:
-Optimal Power-law Bounce Model S(ℓ):
-========================================
-  ℓ= 2: S = 0.1960
-  ℓ= 3: S = 0.7067
-  ℓ= 4: S = 0.8374
-  ℓ= 5: S = 0.8930
-  ℓ=10: S = 0.9671
-  ℓ=20: S = 0.9889
-  ℓ=30: S = 0.9940
-========================================
-ΔBIC = -3.73 (beats ΛCDM)
+Einstein-Cartan Torsion Cosmology Model
+==================================================
+
+Parameters:
+  kappa: 0.804
+  beta: 0.67
+  r_torsion: 0.01
+  n_t: -0.02
+
+Transfer Functions S(ℓ):
+   ℓ     S_TT     S_EE     S_TE   BB×10⁴
+--------------------------------------------
+   2   0.1960   0.3356   0.2565   0.0431
+   3   0.7157   0.7993   0.7563   0.0961
+   4   0.8453   0.8935   0.8690   0.1699
+   5   0.8995   0.9315   0.9154   0.2643
+  10   0.9702   0.9799   0.9751   1.0425
+  15   0.9847   0.9897   0.9872   1.0340
+  50   0.9977   0.9984   0.9980   1.0094
+  80   0.9989   0.9992   0.9990   1.0000
+ 100   0.9992   0.9995   0.9993   0.9955
+
+Predictions for CMB-S4:
+  Tensor-to-scalar ratio r = 0.01
+  Tensor tilt n_t = -0.02
+  B-mode amplitude at ℓ=80: 100.00 nK²
 

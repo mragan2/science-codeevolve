@@ -6,27 +6,27 @@ OBJECTIVE: Evolve Einstein-Cartan torsion parameters to optimally fit
 CMB TT, EE, and TE spectra while predicting tensor (B-mode) signatures.
 
 BACKGROUND:
-- Your discovered transfer function S(ℓ) = 1 - 0.804/(1+(ℓ-2))^1.455
-- The power-law index α = 1.455 ≈ 3/2 matches Einstein-Cartan prediction
+- Your discovered transfer function S(ell) = 1 - 0.804/(1+(ell-2))^1.455
+- The power-law index alpha = 1.455 ~ 3/2 matches Einstein-Cartan prediction
 - Now we evolve the full torsion model to:
   1. Fit TT, EE, TE simultaneously
   2. Predict tensor-to-scalar ratio r
   3. Predict B-mode spectrum for CMB-S4
 
 KEY PARAMETERS TO EVOLVE:
-- κ (kappa): Torsion coupling strength
-- β (beta): Spin-torsion interaction parameter  
+- kappa: Torsion coupling strength
+- beta: Spin-torsion interaction parameter  
 - r_torsion: Tensor-to-scalar ratio from bounce
 - n_t: Tensor spectral tilt
 
 PHYSICAL CONSTRAINTS (from Einstein-Cartan theory):
-- α = 3/2 (fixed by theory)
-- S(2) ≈ 0.196 (from Planck observation)
+- alpha = 3/2 (fixed by theory)
+- S(2) ~ 0.196 (from Planck observation)
 - r < 0.06 (Planck/BICEP upper limit)
 - -0.1 < n_t < 0.1 (near scale-invariant)
 
 References:
-- Popławski (2010): arXiv:1007.0587
+- Poplawski (2010): arXiv:1007.0587
 - Planck 2018: arXiv:1807.06209
 """
 
@@ -92,7 +92,7 @@ PLANCK_TE = {
     15: {"value": 28.0, "error": 6.5},
 }
 
-# ΛCDM predictions
+# LCDM predictions
 LCDM_TT = {2: 1023.0, 3: 936.0, 4: 1020.0, 5: 1195.0, 6: 1096.0,
            7: 1217.0, 8: 1246.0, 9: 1109.0, 10: 1016.0, 11: 1141.0,
            12: 1161.0, 13: 1037.0, 14: 970.0, 15: 1002.0}
@@ -182,7 +182,7 @@ def evaluate(program_path: str) -> Dict[str, Any]:
             return {"combined_score": 0.0, "error": f"S({ell}): {e}"}
 
     # ==========================================================================
-    # Compute χ² for TT, EE, TE
+    # Compute chi^2 for TT, EE, TE
     # ==========================================================================
     chi2_tt = 0.0
     for ell in range(2, 16):
@@ -209,7 +209,7 @@ def evaluate(program_path: str) -> Dict[str, Any]:
     chi2_reduced = chi2_total / N_DATA
 
     # ==========================================================================
-    # ΛCDM baseline χ²
+    # LCDM baseline chi^2
     # ==========================================================================
     chi2_lcdm_tt = sum(((PLANCK_TT[e]["value"] - LCDM_TT[e]) / 
                         (PLANCK_TT[e]["error_plus"] if LCDM_TT[e] > PLANCK_TT[e]["value"] 
@@ -233,10 +233,10 @@ def evaluate(program_path: str) -> Dict[str, Any]:
     # ==========================================================================
     
     # 1. Quadrupole TT suppression must match observation
-    target_s2 = 201.0 / 1023.0  # ≈ 0.196
+    target_s2 = 201.0 / 1023.0  # ~0.196
     quadrupole_score = math.exp(-((S_tt[2] - target_s2) / 0.05) ** 2)
     
-    # 2. High-ℓ must return to 1.0
+    # 2. High-ell must return to 1.0
     asymp_dev = sum(abs(S_tt[ell] - 1.0) for ell in range(12, 16)) / 4.0
     asymptotic_score = math.exp(-10.0 * asymp_dev)
     
@@ -249,7 +249,7 @@ def evaluate(program_path: str) -> Dict[str, Any]:
     tensor_score = math.exp(-tensor_penalty)
     
     # 4. EE-TT correlation (torsion predicts specific relationship)
-    # In ECSK: S_EE ≈ S_TT^(2/3) for spin-2 torsion coupling
+    # In ECSK: S_EE ~ S_TT^(2/3) for spin-2 torsion coupling
     ee_tt_correlation = 0.0
     for ell in range(2, 16):
         expected_ee = S_tt[ell] ** (2/3)
@@ -260,7 +260,7 @@ def evaluate(program_path: str) -> Dict[str, Any]:
     # Combined fitness
     # ==========================================================================
     
-    # BIC-based fitness (reward negative ΔBIC)
+    # BIC-based fitness (reward negative Delta-BIC)
     bic_fitness = 1.0 / (1.0 + math.exp(delta_bic / 5.0))
     
     # Physics constraints
@@ -280,9 +280,9 @@ def evaluate(program_path: str) -> Dict[str, Any]:
     # ==========================================================================
     n_t = params.get("n_t", 0.0)  # Tensor tilt
     
-    # B-mode prediction at ℓ=80 (BICEP sweet spot)
-    # C_ℓ^BB ∝ r * (ℓ/80)^n_t for primordial tensors
-    bb_amplitude = r_torsion * 0.01  # μK² at ℓ=80
+    # B-mode prediction at ell=80 (BICEP sweet spot)
+    # C_ell^BB ~ r * (ell/80)^n_t for primordial tensors
+    bb_amplitude = r_torsion * 0.01  # uK^2 at ell=80
     
     # ==========================================================================
     # Results
@@ -291,7 +291,7 @@ def evaluate(program_path: str) -> Dict[str, Any]:
         "combined_score": combined_score,
         "COMBINED_SCORE": combined_score,
         
-        # χ² breakdown
+        # chi^2 breakdown
         "chi2_tt": chi2_tt,
         "chi2_ee": chi2_ee,
         "chi2_te": chi2_te,

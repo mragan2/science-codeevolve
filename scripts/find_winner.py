@@ -7,9 +7,9 @@ import sys
 
 # 1. SETUP: Where to look?
 SEARCH_DIRS = [
-    "experiments/bounce_cosmology/phase_2_v2"
+    "experiments/torsion_problem/run_1"
 ]
-EVALUATOR_SCRIPT = "/home/rag/Projects/science-codeevolve/problems/bounce_cosmology/input/evaluate.py"
+EVALUATOR_SCRIPT = "/home/rag/Projects/science-codeevolve/problems/torsion_problem/input/evaluate.py"
 
 WINNER_COPY_PATH = "FINAL_BEST_SOL.py"
 WINNER_RUN_OUTPUT = "WINNER_RUN_OUTPUT.txt"
