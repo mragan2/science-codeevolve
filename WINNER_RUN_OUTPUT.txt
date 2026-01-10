@@ -1,13 +1,13 @@
-COMMAND: /home/rag/miniconda3/bin/python experiments/bounce_cosmology/run_1/4/best_sol.py
+COMMAND: /home/rag/miniconda3/envs/codeevolve/bin/python experiments/bounce_cosmology/run_1/4/best_sol.py
 RETURN_CODE: 0
 
 STDOUT:
 Power-law model S(ℓ):
-  ℓ=2: 0.2000
-  ℓ=3: 0.6818
-  ℓ=4: 0.8144
-  ℓ=5: 0.8734
-  ℓ=10: 0.9570
-  ℓ=20: 0.9841
+  ℓ=2: 0.1960
+  ℓ=3: 0.6802
+  ℓ=4: 0.8135
+  ℓ=5: 0.8728
+  ℓ=10: 0.9567
+  ℓ=20: 0.9840
   ℓ=30: 0.9909
 

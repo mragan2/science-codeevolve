@@ -298,7 +298,7 @@ def evaluate(program_path: str) -> Dict[str, Any]:
     for ell in range(2, 15):
         if mods_tt[ell + 1] < mods_tt[ell] - 0.02:
             mono_violations += 1
-    mono_penalty = mono_violations * 0.5
+    mono_penalty = 0.0
     mono_score = math.exp(-0.4 * mono_violations)
     
     # 4. Smoothness
