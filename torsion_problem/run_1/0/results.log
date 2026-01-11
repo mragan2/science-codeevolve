@@ -1,0 +1,1077 @@
+[island 0] 2026-01-10 16:59:35,093 | INFO | 3613816 | === CodeEvolve ===
+[island 0] 2026-01-10 16:59:35,094 | INFO | 3613816 | ====== PREPARING COMPONENTS ======
+[island 0] 2026-01-10 16:59:35,134 | INFO | 3613816 | Starting anew.
+[island 0] 2026-01-10 16:59:35,135 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 16:59:35,244 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 16:59:35,244 | INFO | 3613816 | sol_db=ProgramDatabase(id=0,total_programs=1,mode=MAP-Elites,elite_map=GridEliteMap(num_cells=60))
+[island 0] 2026-01-10 16:59:35,244 | INFO | 3613816 | prompt_db=ProgramDatabase(id=0,total_programs=1,mode=standard,num_alive=1,max_alive=None)
+[island 0] 2026-01-10 16:59:35,244 | INFO | 3613816 | exploration_ensemble=LMEnsemble(
+  (model): 2
+  (0): OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.75,top_p=0.92,weight=0.6)
+  (1): OpenAILM(model_name=kimi-k2:1t-cloud,temp=0.75,top_p=0.92,weight=0.4)
+)
+[island 0] 2026-01-10 16:59:35,244 | INFO | 3613816 | exploitation_ensemble=LMEnsemble(
+  (model): 2
+  (0): OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.55,top_p=0.9,weight=0.7)
+  (1): OpenAILM(model_name=devstral-2:123b-cloud,temp=0.55,top_p=0.9,weight=0.3)
+)
+[island 0] 2026-01-10 16:59:35,244 | INFO | 3613816 | prompt_sampler=PromptSampler(aux_lm=OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1))
+[island 0] 2026-01-10 16:59:35,244 | INFO | 3613816 | evaluator=Evaluator(eval_path=evaluate.py,cwd=problems/torsion_problem/input,timeout_s=30,max_mem_b=5000000000,mem_check_interval_s=0.1)
+[island 0] 2026-01-10 16:59:35,244 | INFO | 3613816 | embedding=OpenAIEmbedding(model_name=qwen3-embedding:4b,dimensions=None)
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | scheduler=PlateauScheduler(exploration_rate=0.35,min_rate=0.15,max_rate=0.4,plateau_threshold=5,increase_factor=1.05,decrease_factor=0.95,)
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | init_prog=Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.150596792927... [TRUNCATED]
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | ============ STARTING EVOLUTIONARY LOOP ============
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | Starting from epoch 0 with evolve_config = {'ckpt': 10, 'early_stopping_rounds': 80, 'evolve_end_marker': '# EVOLVE-BLOCK-END', 'evolve_start_marker': '# EVOLVE-BLOCK-START', 'exploration_rate': 0.35, 'fitness_key': 'combined_score', 'init_p... [TRUNCATED]
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | ========= EPOCH 1 =========
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | Global early stopping counter: 0/80
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | Exploration rate: 0.35
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | Best prompt: Program(id=958b6df2-9c0a-4e8f-bf28-d2e1062fd666,fitness=0.00000000,island_found=0,iteration_found=0,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | Generating initial populations: True
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 16:59:35,245 | INFO | 3613816 | Generating initial population: selecting initial solution and prompt as parents.
+[island 0] 2026-01-10 16:59:35,246 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 16:59:35,246 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 16:59:35,246 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:00:25,657 | INFO | 3613816 | Successfully retrieved response, using 3136 prompt tokens and 9885 completion tokens.
+[island 0] 2026-01-10 17:00:25,658 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:00:25,660 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:00:25,660 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:00:25,660 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:00:25,661 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:00:25,661 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=kimi-k2:1t-cloud,temp=0.75,top_p=0.92,weight=0.4)...
+[island 0] 2026-01-10 17:01:45,146 | INFO | 3613816 | Successfully retrieved response, using 3207 prompt tokens and 1982 completion tokens.
+[island 0] 2026-01-10 17:01:45,147 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:01:45,150 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:01:45,151 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:01:45,283 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:01:45,283 | INFO | 3613816 | Child solution -> Program(id=6026fe3b-5dcf-4947-97b6-c5649fcef7da,fitness=0.09882490,island_found=0,iteration_found=1,returncode=0,eval_metrics={'combined_score': 0.09882489728689163, 'COMBINED_SCORE': 0.09882489728689163, 'chi2_tt': 85.3439... [TRUNCATED]
+[island 0] 2026-01-10 17:01:45,283 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:01:45,283 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:01:46,197 | INFO | 3613816 | Successfully retrieved embedding, used 1839 tokens
+[island 0] 2026-01-10 17:01:46,197 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:01:46,197 | INFO | 3613816 | New program is worse than best -> 0.09882489728689163 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:01:46,197 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:01:46,197 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:02:19,804 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:02:19,804 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | Early stopping counter increased: 1/80
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | ========= EPOCH 2 =========
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | Global early stopping counter: 1/80
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | Exploration rate: 0.35
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | Best prompt: Program(id=e1e725f1-817b-4472-8308-ec3b7116cde8,fitness=0.09882490,island_found=0,iteration_found=1,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:02:19,805 | INFO | 3613816 | Generating initial populations: True
+[island 0] 2026-01-10 17:02:19,806 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:02:19,806 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:02:19,806 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:02:19,806 | INFO | 3613816 | Generating initial population: selecting initial solution and prompt as parents.
+[island 0] 2026-01-10 17:02:19,806 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:02:19,806 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:02:19,806 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:03:09,470 | INFO | 3613816 | Successfully retrieved response, using 3136 prompt tokens and 9759 completion tokens.
+[island 0] 2026-01-10 17:03:09,470 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:03:09,471 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:03:09,471 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:03:09,471 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:03:09,471 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:03:09,471 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=kimi-k2:1t-cloud,temp=0.75,top_p=0.92,weight=0.4)...
+[island 0] 2026-01-10 17:04:05,892 | INFO | 3613816 | Successfully retrieved response, using 3168 prompt tokens and 1644 completion tokens.
+[island 0] 2026-01-10 17:04:05,893 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:04:05,895 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:04:05,895 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:04:06,003 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:04:06,004 | INFO | 3613816 | Child solution -> Program(id=5a8ea32b-4a23-4bd9-864d-7744771f0627,fitness=0.28861506,island_found=0,iteration_found=2,returncode=0,eval_metrics={'combined_score': 0.2886150574624423, 'COMBINED_SCORE': 0.2886150574624423, 'chi2_tt': 32.482630... [TRUNCATED]
+[island 0] 2026-01-10 17:04:06,004 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:04:06,005 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:04:06,802 | INFO | 3613816 | Successfully retrieved embedding, used 1633 tokens
+[island 0] 2026-01-10 17:04:06,802 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:04:06,802 | INFO | 3613816 | New program is worse than best -> 0.2886150574624423 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:04:06,802 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:04:06,802 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:05:18,639 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:05:18,639 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:05:18,639 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:05:18,640 | INFO | 3613816 | Early stopping counter increased: 2/80
+[island 0] 2026-01-10 17:05:18,640 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:05:18,640 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:05:18,640 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:05:18,640 | INFO | 3613816 | ========= EPOCH 3 =========
+[island 0] 2026-01-10 17:05:18,640 | INFO | 3613816 | Global early stopping counter: 2/80
+[island 0] 2026-01-10 17:05:18,640 | INFO | 3613816 | Exploration rate: 0.35
+[island 0] 2026-01-10 17:05:18,640 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.28861506,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:05:18,641 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:05:18,641 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:05:18,641 | INFO | 3613816 | Generating initial populations: True
+[island 0] 2026-01-10 17:05:18,641 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:05:18,641 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:05:18,641 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:05:18,641 | INFO | 3613816 | Generating initial population: selecting initial solution and prompt as parents.
+[island 0] 2026-01-10 17:05:18,642 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:05:18,642 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:05:18,642 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:06:52,922 | INFO | 3613816 | Successfully retrieved response, using 3136 prompt tokens and 8413 completion tokens.
+[island 0] 2026-01-10 17:06:52,922 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:06:52,924 | ERROR | 3613816 | Error with SEARCH/REPLACE (meta-prompt): 'Search block not found in any evolve blocks: 'FORMULAS TO MODIFY:
+
+S_TT(ell) = 1 - kappa / (1 + (ell-2))^(3/2)   # alpha=3/2 fixed
+
+S_EE(ell) = S_TT(ell)^beta                     # evolve beta
+
+S_TE(... [TRUNCATED]
+[island 0] 2026-01-10 17:06:52,924 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:06:52,925 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:06:52,925 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=kimi-k2:1t-cloud,temp=0.75,top_p=0.92,weight=0.4)...
+[island 0] 2026-01-10 17:08:23,099 | INFO | 3613816 | Successfully retrieved response, using 3134 prompt tokens and 2163 completion tokens.
+[island 0] 2026-01-10 17:08:23,099 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:08:23,102 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:08:23,102 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:08:23,218 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:08:23,218 | INFO | 3613816 | Child solution -> Program(id=fa980430-b9c2-4072-82e0-ced06bd9734b,fitness=0.32539334,island_found=0,iteration_found=3,returncode=0,eval_metrics={'combined_score': 0.3253933351936009, 'COMBINED_SCORE': 0.3253933351936009, 'chi2_tt': 17.751692... [TRUNCATED]
+[island 0] 2026-01-10 17:08:23,218 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:08:23,218 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:08:24,199 | INFO | 3613816 | Successfully retrieved embedding, used 1978 tokens
+[island 0] 2026-01-10 17:08:24,199 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:08:24,199 | INFO | 3613816 | New program is worse than best -> 0.3253933351936009 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:08:24,199 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:08:24,199 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:08:24,200 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:08:24,200 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:08:24,200 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:08:24,200 | INFO | 3613816 | Early stopping counter increased: 3/80
+[island 0] 2026-01-10 17:08:24,200 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:08:24,200 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | ========= EPOCH 4 =========
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | Global early stopping counter: 3/80
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | Exploration rate: 0.35
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | Best prompt: Program(id=958b6df2-9c0a-4e8f-bf28-d2e1062fd666,fitness=0.32539334,island_found=0,iteration_found=0,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | Generating initial populations: True
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | Generating initial population: selecting initial solution and prompt as parents.
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:08:24,201 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:10:07,147 | INFO | 3613816 | Successfully retrieved response, using 3136 prompt tokens and 11056 completion tokens.
+[island 0] 2026-01-10 17:10:07,147 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:10:07,148 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:10:07,148 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:10:07,148 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:10:07,148 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:10:07,148 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.75,top_p=0.92,weight=0.6)...
+[island 0] 2026-01-10 17:11:08,300 | INFO | 3613816 | Successfully retrieved response, using 3957 prompt tokens and 2696 completion tokens.
+[island 0] 2026-01-10 17:11:08,300 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:11:08,302 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:11:08,302 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:11:08,410 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:11:08,410 | INFO | 3613816 | Child solution -> Program(id=7c1332cc-5276-478c-8325-5896ea3d3421,fitness=0.00000000,island_found=0,iteration_found=4,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: invalid syntax (tmp7ovjahwz.py, line 2)'}).
+[island 0] 2026-01-10 17:11:08,410 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:11:08,411 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:11:10,522 | INFO | 3613816 | Successfully retrieved embedding, used 3818 tokens
+[island 0] 2026-01-10 17:11:10,522 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:11:10,522 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:11:10,522 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:11:10,522 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:11:29,835 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:11:29,835 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:11:29,836 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:11:29,836 | INFO | 3613816 | Early stopping counter increased: 4/80
+[island 0] 2026-01-10 17:11:29,836 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:11:29,836 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:11:29,837 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:11:29,837 | INFO | 3613816 | ========= EPOCH 5 =========
+[island 0] 2026-01-10 17:11:29,837 | INFO | 3613816 | Global early stopping counter: 4/80
+[island 0] 2026-01-10 17:11:29,837 | INFO | 3613816 | Exploration rate: 0.35
+[island 0] 2026-01-10 17:11:29,837 | INFO | 3613816 | Best prompt: Program(id=958b6df2-9c0a-4e8f-bf28-d2e1062fd666,fitness=0.32539334,island_found=0,iteration_found=0,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:11:29,837 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:11:29,837 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:11:29,838 | INFO | 3613816 | Generating initial populations: True
+[island 0] 2026-01-10 17:11:29,838 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:11:29,838 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:11:29,838 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:11:29,838 | INFO | 3613816 | Generating initial population: selecting initial solution and prompt as parents.
+[island 0] 2026-01-10 17:11:29,838 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:11:29,838 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:11:29,838 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:12:46,887 | INFO | 3613816 | Successfully retrieved response, using 3136 prompt tokens and 7997 completion tokens.
+[island 0] 2026-01-10 17:12:46,887 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:12:46,889 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:12:46,889 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:12:46,889 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:12:46,889 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:12:46,889 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.75,top_p=0.92,weight=0.6)...
+[island 0] 2026-01-10 17:14:20,866 | INFO | 3613816 | Successfully retrieved response, using 3516 prompt tokens and 1933 completion tokens.
+[island 0] 2026-01-10 17:14:20,866 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:14:20,868 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:14:20,868 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:14:20,976 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:14:20,976 | INFO | 3613816 | Child solution -> Program(id=0fba0166-6e21-4943-8ddc-ad9034778545,fitness=0.00000000,island_found=0,iteration_found=5,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: invalid syntax (tmp2w0bckgc.py, line 2)'}).
+[island 0] 2026-01-10 17:14:20,977 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:14:20,977 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:14:22,580 | INFO | 3613816 | Successfully retrieved embedding, used 3036 tokens
+[island 0] 2026-01-10 17:14:22,580 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:14:22,580 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:14:22,580 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:14:22,580 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:15:34,187 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:15:34,187 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:15:34,188 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:15:34,188 | INFO | 3613816 | Early stopping counter increased: 5/80
+[island 0] 2026-01-10 17:15:34,188 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:15:34,188 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | ========= EPOCH 6 =========
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | Global early stopping counter: 5/80
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | Exploration rate: 0.35
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | Best prompt: Program(id=958b6df2-9c0a-4e8f-bf28-d2e1062fd666,fitness=0.32539334,island_found=0,iteration_found=0,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | Generating initial populations: True
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | Generating initial population: selecting initial solution and prompt as parents.
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:15:34,189 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:16:34,103 | INFO | 3613816 | Successfully retrieved response, using 3136 prompt tokens and 11580 completion tokens.
+[island 0] 2026-01-10 17:16:34,103 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:16:34,105 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:16:34,105 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:16:34,106 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:16:34,106 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:16:34,107 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=kimi-k2:1t-cloud,temp=0.75,top_p=0.92,weight=0.4)...
+[island 0] 2026-01-10 17:17:44,012 | INFO | 3613816 | Successfully retrieved response, using 3408 prompt tokens and 2229 completion tokens.
+[island 0] 2026-01-10 17:17:44,012 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:17:44,015 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:17:44,016 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:17:44,146 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:17:44,146 | INFO | 3613816 | Child solution -> Program(id=7c0e3424-a5b4-4203-972f-9dcb1e31ba87,fitness=0.00006005,island_found=0,iteration_found=6,returncode=0,eval_metrics={'combined_score': 6.0046439279772755e-05, 'COMBINED_SCORE': 6.0046439279772755e-05, 'chi2_tt': 2... [TRUNCATED]
+[island 0] 2026-01-10 17:17:44,147 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:17:44,147 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:17:45,169 | INFO | 3613816 | Successfully retrieved embedding, used 2010 tokens
+[island 0] 2026-01-10 17:17:45,170 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:17:45,170 | INFO | 3613816 | New program is worse than best -> 6.0046439279772755e-05 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:17:45,170 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:17:45,170 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:18:40,836 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:18:40,836 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:18:40,836 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:18:40,836 | INFO | 3613816 | Early stopping counter increased: 6/80
+[island 0] 2026-01-10 17:18:40,836 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:18:40,836 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:18:40,836 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:18:40,836 | INFO | 3613816 | ========= EPOCH 7 =========
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | Global early stopping counter: 6/80
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | Exploration rate: 0.35
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | Best prompt: Program(id=958b6df2-9c0a-4e8f-bf28-d2e1062fd666,fitness=0.32539334,island_found=0,iteration_found=0,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | Generating initial populations: True
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | Generating initial population: selecting initial solution and prompt as parents.
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:18:40,837 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:19:25,945 | INFO | 3613816 | Successfully retrieved response, using 3136 prompt tokens and 8038 completion tokens.
+[island 0] 2026-01-10 17:19:25,945 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:19:25,945 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:19:25,945 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:19:25,945 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:19:25,945 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:19:25,946 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.75,top_p=0.92,weight=0.6)...
+[island 0] 2026-01-10 17:20:24,865 | INFO | 3613816 | Successfully retrieved response, using 3561 prompt tokens and 2236 completion tokens.
+[island 0] 2026-01-10 17:20:24,865 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:20:24,866 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:20:24,867 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:20:24,983 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:20:24,983 | INFO | 3613816 | Child solution -> Program(id=ab136a9c-c5b1-4be2-aeb6-93087374932b,fitness=0.00000000,island_found=0,iteration_found=7,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: invalid syntax (tmp4y4ev5su.py, line 2)'}).
+[island 0] 2026-01-10 17:20:24,983 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:20:24,983 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:20:26,786 | INFO | 3613816 | Successfully retrieved embedding, used 3339 tokens
+[island 0] 2026-01-10 17:20:26,786 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:20:26,786 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:20:26,786 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:20:26,786 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:21:43,251 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:21:43,251 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:21:43,251 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:21:43,251 | INFO | 3613816 | Early stopping counter increased: 7/80
+[island 0] 2026-01-10 17:21:43,251 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:21:43,251 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | ========= EPOCH 8 =========
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | Global early stopping counter: 7/80
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | Exploration rate: 0.35
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | Best prompt: Program(id=958b6df2-9c0a-4e8f-bf28-d2e1062fd666,fitness=0.32539334,island_found=0,iteration_found=0,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | Generating initial populations: True
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | Generating initial population: selecting initial solution and prompt as parents.
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:21:43,252 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:23:25,327 | INFO | 3613816 | Successfully retrieved response, using 3136 prompt tokens and 10258 completion tokens.
+[island 0] 2026-01-10 17:23:25,327 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:23:25,329 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:23:25,329 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:23:25,330 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:23:25,330 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:23:25,331 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=kimi-k2:1t-cloud,temp=0.75,top_p=0.92,weight=0.4)...
+[island 0] 2026-01-10 17:24:28,941 | INFO | 3613816 | Successfully retrieved response, using 3297 prompt tokens and 2156 completion tokens.
+[island 0] 2026-01-10 17:24:28,942 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:24:28,942 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:24:28,942 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:24:29,050 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:24:29,050 | INFO | 3613816 | Child solution -> Program(id=bad524b9-96ac-410c-a9d4-ef4def19dd68,fitness=0.05983157,island_found=0,iteration_found=8,returncode=0,eval_metrics={'combined_score': 0.059831571821764434, 'COMBINED_SCORE': 0.059831571821764434, 'chi2_tt': 134.0... [TRUNCATED]
+[island 0] 2026-01-10 17:24:29,050 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:24:29,050 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:24:30,691 | INFO | 3613816 | Successfully retrieved embedding, used 1939 tokens
+[island 0] 2026-01-10 17:24:30,691 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:24:30,691 | INFO | 3613816 | New program is worse than best -> 0.059831571821764434 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:24:30,691 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:24:30,691 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:24:37,703 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:24:37,704 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:24:37,704 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:24:37,704 | INFO | 3613816 | Early stopping counter increased: 8/80
+[island 0] 2026-01-10 17:24:37,704 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:24:37,704 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | ========= EPOCH 9 =========
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | Global early stopping counter: 8/80
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | Exploration rate: 0.35
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | Best prompt: Program(id=958b6df2-9c0a-4e8f-bf28-d2e1062fd666,fitness=0.32539334,island_found=0,iteration_found=0,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | Generating initial populations: True
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | Generating initial population: selecting initial solution and prompt as parents.
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:24:37,705 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:25:42,874 | INFO | 3613816 | Successfully retrieved response, using 3136 prompt tokens and 11707 completion tokens.
+[island 0] 2026-01-10 17:25:42,875 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:25:42,875 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:25:42,875 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:25:42,875 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:25:42,875 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:25:42,875 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.75,top_p=0.92,weight=0.6)...
+[island 0] 2026-01-10 17:26:38,667 | INFO | 3613816 | Successfully retrieved response, using 3466 prompt tokens and 1836 completion tokens.
+[island 0] 2026-01-10 17:26:38,667 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:26:38,668 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:26:38,669 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:26:38,778 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:26:38,778 | INFO | 3613816 | Child solution -> Program(id=a9d8d321-ac56-4b9c-aef3-36d7289f1203,fitness=0.00000000,island_found=0,iteration_found=9,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: invalid syntax (tmpdr4z4rir.py, line 2)'}).
+[island 0] 2026-01-10 17:26:38,779 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:26:38,779 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:26:40,325 | INFO | 3613816 | Successfully retrieved embedding, used 2947 tokens
+[island 0] 2026-01-10 17:26:40,325 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:26:40,325 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:26:40,326 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:26:40,326 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:27:19,223 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:27:19,223 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:27:19,224 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:27:19,224 | INFO | 3613816 | Early stopping counter increased: 9/80
+[island 0] 2026-01-10 17:27:19,224 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:27:19,224 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:27:19,226 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:27:19,226 | INFO | 3613816 | ========= EPOCH 10 =========
+[island 0] 2026-01-10 17:27:19,226 | INFO | 3613816 | Global early stopping counter: 9/80
+[island 0] 2026-01-10 17:27:19,226 | INFO | 3613816 | Exploration rate: 0.35
+[island 0] 2026-01-10 17:27:19,226 | INFO | 3613816 | Best prompt: Program(id=958b6df2-9c0a-4e8f-bf28-d2e1062fd666,fitness=0.32539334,island_found=0,iteration_found=0,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:27:19,226 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:27:19,226 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:27:19,226 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 17:27:19,226 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:27:19,226 | INFO | 3613816 | Exploitation: True
+[island 0] 2026-01-10 17:27:19,226 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:27:19,227 | INFO | 3613816 | Exploitation: Selecting parents using roulette with kwargs {'roulette_by_rank': True}.
+[island 0] 2026-01-10 17:27:19,227 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:27:19,227 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:27:19,227 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 4).
+[island 0] 2026-01-10 17:27:19,227 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.55,top_p=0.9,weight=0.7)...
+[island 0] 2026-01-10 17:28:23,609 | INFO | 3613816 | Successfully retrieved response, using 3348 prompt tokens and 1167 completion tokens.
+[island 0] 2026-01-10 17:28:23,610 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:28:23,612 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:28:23,612 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:28:23,742 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:28:23,743 | INFO | 3613816 | Child solution -> Program(id=f1927d76-8866-4326-abfe-1f682e41ed94,fitness=0.41034722,island_found=0,iteration_found=10,returncode=0,eval_metrics={'combined_score': 0.4103472247449437, 'COMBINED_SCORE': 0.4103472247449437, 'chi2_tt': 17.89592... [TRUNCATED]
+[island 0] 2026-01-10 17:28:23,743 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:28:23,743 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:28:24,515 | INFO | 3613816 | Successfully retrieved embedding, used 1604 tokens
+[island 0] 2026-01-10 17:28:24,516 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:28:24,516 | INFO | 3613816 | New program is worse than best -> 0.4103472247449437 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:28:24,516 | INFO | 3613816 | === CHECKPOINT STEP ===
+[island 0] 2026-01-10 17:28:24,516 | INFO | 3613816 | Waiting for other islands to arrive at barrier...
+[island 0] 2026-01-10 17:29:12,384 | INFO | 3613816 | All islands arrived. Proceeding to save ckpt.
+[island 0] 2026-01-10 17:29:12,385 | INFO | 3613816 | Saved best solution at 'experiments/torsion_problem/run_1/0/best_sol.py'.
+[island 0] 2026-01-10 17:29:12,385 | INFO | 3613816 | Saved best prompt at 'experiments/torsion_problem/run_1/0/best_prompt.txt'.
+[island 0] 2026-01-10 17:29:12,385 | INFO | 3613816 | Checkpoint 10 successfully saved.
+[island 0] 2026-01-10 17:29:12,385 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:29:12,385 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:29:12,387 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:29:12,387 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Early stopping counter increased: 10/80
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | ========= EPOCH 11 =========
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Global early stopping counter: 10/80
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Exploration rate: 0.33249999999999996
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Exploration: True
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Exploration: selecting parents uniformly at random.
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:29:12,388 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:30:05,723 | INFO | 3613816 | Successfully retrieved response, using 3617 prompt tokens and 10350 completion tokens.
+[island 0] 2026-01-10 17:30:05,723 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:30:05,725 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:30:05,725 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:30:05,726 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:30:05,726 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:30:05,727 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.75,top_p=0.92,weight=0.6)...
+[island 0] 2026-01-10 17:30:53,973 | INFO | 3613816 | Successfully retrieved response, using 3959 prompt tokens and 3296 completion tokens.
+[island 0] 2026-01-10 17:30:53,974 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:30:53,978 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:30:53,979 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:30:54,108 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:30:54,108 | INFO | 3613816 | Child solution -> Program(id=9d82488c-4b11-4f99-8f52-72114837a078,fitness=0.00000000,island_found=0,iteration_found=11,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: invalid syntax (tmpn0wes594.py, line 2)'}).
+[island 0] 2026-01-10 17:30:54,108 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:30:54,108 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:30:55,514 | INFO | 3613816 | Successfully retrieved embedding, used 2752 tokens
+[island 0] 2026-01-10 17:30:55,514 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:30:55,514 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:30:55,514 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:30:55,514 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:31:39,805 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:31:39,805 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | Early stopping counter increased: 11/80
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | ========= EPOCH 12 =========
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | Global early stopping counter: 11/80
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | Exploration rate: 0.33249999999999996
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | Exploitation: True
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | Exploitation: Selecting parents using roulette with kwargs {'roulette_by_rank': True}.
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:31:39,806 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:31:39,807 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 4).
+[island 0] 2026-01-10 17:31:39,807 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.55,top_p=0.9,weight=0.7)...
+[island 0] 2026-01-10 17:32:16,522 | INFO | 3613816 | Successfully retrieved response, using 3383 prompt tokens and 1930 completion tokens.
+[island 0] 2026-01-10 17:32:16,523 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:32:16,525 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:32:16,526 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:32:16,656 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:32:16,656 | INFO | 3613816 | Child solution -> Program(id=498f36da-5371-4d93-a826-d225dd5489a6,fitness=0.00000000,island_found=0,iteration_found=12,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: invalid syntax (tmpaf2yf6hp.py, line 2)'}).
+[island 0] 2026-01-10 17:32:16,656 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:32:18,296 | INFO | 3613816 | Successfully retrieved embedding, used 3033 tokens
+[island 0] 2026-01-10 17:32:18,296 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:32:18,296 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:32:18,296 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:32:18,297 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:42:34,555 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:42:34,555 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:42:34,555 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:42:34,555 | INFO | 3613816 | Early stopping counter increased: 12/80
+[island 0] 2026-01-10 17:42:34,555 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:42:34,555 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | ========= EPOCH 13 =========
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | Global early stopping counter: 12/80
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | Exploration rate: 0.33249999999999996
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | Exploration: True
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | Exploration: selecting parents uniformly at random.
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:42:34,556 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:43:11,008 | INFO | 3613816 | Successfully retrieved response, using 4055 prompt tokens and 6384 completion tokens.
+[island 0] 2026-01-10 17:43:11,009 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:43:11,010 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:43:11,010 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:43:11,011 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:43:11,011 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:43:11,011 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=kimi-k2:1t-cloud,temp=0.75,top_p=0.92,weight=0.4)...
+[island 0] 2026-01-10 17:44:36,914 | INFO | 3613816 | Successfully retrieved response, using 4068 prompt tokens and 3878 completion tokens.
+[island 0] 2026-01-10 17:44:36,914 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:44:36,920 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:44:36,920 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:44:37,050 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:44:37,050 | INFO | 3613816 | Child solution -> Program(id=a52dbbcc-efa4-4992-9963-153200d18c3d,fitness=0.00000000,island_found=0,iteration_found=13,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: unterminated string literal (detected at line 35) (tmp... [TRUNCATED]
+[island 0] 2026-01-10 17:44:37,050 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:44:37,051 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:44:38,501 | INFO | 3613816 | Successfully retrieved embedding, used 2794 tokens
+[island 0] 2026-01-10 17:44:38,501 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:44:38,501 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:44:38,501 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:44:38,501 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:44:38,501 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:44:38,502 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:44:38,502 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:44:38,502 | INFO | 3613816 | Early stopping counter increased: 13/80
+[island 0] 2026-01-10 17:44:38,503 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:44:38,503 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | ========= EPOCH 14 =========
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | Global early stopping counter: 13/80
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | Exploration rate: 0.33249999999999996
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | Exploration: True
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | Exploration: selecting parents uniformly at random.
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:44:38,505 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:45:51,061 | INFO | 3613816 | Successfully retrieved response, using 3996 prompt tokens and 9879 completion tokens.
+[island 0] 2026-01-10 17:45:51,061 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:45:51,063 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:45:51,063 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:45:51,064 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:45:51,064 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:45:51,065 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=kimi-k2:1t-cloud,temp=0.75,top_p=0.92,weight=0.4)...
+[island 0] 2026-01-10 17:46:52,562 | INFO | 3613816 | Successfully retrieved response, using 4129 prompt tokens and 3268 completion tokens.
+[island 0] 2026-01-10 17:46:52,563 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:46:52,568 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:46:52,568 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:46:52,699 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:46:52,700 | INFO | 3613816 | Child solution -> Program(id=8a9b9a98-bbdd-40ac-920e-9e2a17d6231c,fitness=0.08787977,island_found=0,iteration_found=14,returncode=0,eval_metrics={'combined_score': 0.08787977480896081, 'COMBINED_SCORE': 0.08787977480896081, 'chi2_tt': 246.48... [TRUNCATED]
+[island 0] 2026-01-10 17:46:52,701 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:46:52,701 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:46:53,887 | INFO | 3613816 | Successfully retrieved embedding, used 2276 tokens
+[island 0] 2026-01-10 17:46:53,887 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:46:53,887 | INFO | 3613816 | New program is worse than best -> 0.08787977480896081 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:46:53,887 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:46:53,887 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:46:53,887 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:46:53,888 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:46:53,888 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:46:53,888 | INFO | 3613816 | Early stopping counter increased: 14/80
+[island 0] 2026-01-10 17:46:53,888 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:46:53,888 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:46:53,890 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | ========= EPOCH 15 =========
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | Global early stopping counter: 14/80
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | Exploration rate: 0.33249999999999996
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086)}
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | Exploration: True
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | Exploration: selecting parents uniformly at random.
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 17:46:53,891 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 17:47:55,326 | INFO | 3613816 | Successfully retrieved response, using 3684 prompt tokens and 9770 completion tokens.
+[island 0] 2026-01-10 17:47:55,327 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 17:47:55,328 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 17:47:55,328 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 17:47:55,328 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:47:55,328 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 17:47:55,329 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=kimi-k2:1t-cloud,temp=0.75,top_p=0.92,weight=0.4)...
+[island 0] 2026-01-10 17:48:46,390 | INFO | 3613816 | Successfully retrieved response, using 3738 prompt tokens and 2847 completion tokens.
+[island 0] 2026-01-10 17:48:46,391 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:48:46,395 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:48:46,395 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:48:46,525 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:48:46,526 | INFO | 3613816 | Child solution -> Program(id=7e5cc5d8-df8d-4241-afb0-f3febb7463ac,fitness=0.00001121,island_found=0,iteration_found=15,returncode=0,eval_metrics={'combined_score': 1.1209125183955657e-05, 'COMBINED_SCORE': 1.1209125183955657e-05, 'chi2_tt': ... [TRUNCATED]
+[island 0] 2026-01-10 17:48:46,527 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 17:48:46,527 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:48:47,638 | INFO | 3613816 | Successfully retrieved embedding, used 2143 tokens
+[island 0] 2026-01-10 17:48:47,638 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:48:47,638 | INFO | 3613816 | New program is worse than best -> 1.1209125183955657e-05 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:48:47,638 | INFO | 3613816 | === MIGRATION STEP ===
+[island 0] 2026-01-10 17:48:47,638 | INFO | 3613816 | Waiting for other islands to start migration...
+[island 0] 2026-01-10 17:48:47,638 | INFO | 3613816 | Migration started.
+[island 0] 2026-01-10 17:48:47,638 | INFO | 3613816 | Informing other islands: 0 migrants being sent.
+[island 0] 2026-01-10 17:48:47,639 | INFO | 3613816 | Receiving migrant counts from each neighbor.
+[island 0] 2026-01-10 17:48:47,639 | INFO | 3613816 | Island 6 is sending 1 migrants.
+[island 0] 2026-01-10 17:48:47,639 | INFO | 3613816 | Island 1 is sending 0 migrants.
+[island 0] 2026-01-10 17:48:47,639 | INFO | 3613816 | Starting SEND and RECV threads...
+[island 0] 2026-01-10 17:48:47,639 | INFO | 3613816 | [SEND THREAD] Sending migrants to neighbors...
+[island 0] 2026-01-10 17:48:47,639 | INFO | 3613816 | [SEND THREAD] Migrants sent.
+[island 0] 2026-01-10 17:48:47,639 | INFO | 3613816 | [RECV THREAD] Receiving migrants from neighbors...
+[island 0] 2026-01-10 17:48:47,640 | INFO | 3613816 | [RECV THREAD] Received Program(id=45c0466d-a5e3-45eb-931c-a6ad966b74bd,fitness=0.39510967,island_found=6,iteration_found=1,returncode=0,eval_metrics={'combined_score': 0.3951096677499726, 'COMBINED_SCORE': 0.3951096677499726, 'chi2_tt': 20.0... [TRUNCATED]
+[island 0] 2026-01-10 17:48:47,641 | INFO | 3613816 | [RECV THREAD] Received migrants.
+[island 0] 2026-01-10 17:48:47,641 | INFO | 3613816 | Threads finished.
+[island 0] 2026-01-10 17:48:47,641 | INFO | 3613816 | Waiting for other islands to finish migration...
+[island 0] 2026-01-10 17:48:47,641 | INFO | 3613816 | Migration finished.
+[island 0] 2026-01-10 17:48:47,641 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:48:47,641 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:48:47,641 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:48:47,641 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:48:47,641 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Early stopping counter increased: 15/80
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | ========= EPOCH 16 =========
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Global early stopping counter: 15/80
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Exploration rate: 0.34912499999999996
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Exploitation: True
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Exploitation: Selecting parents using roulette with kwargs {'roulette_by_rank': True}.
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Selected 1 inspirations.
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 4).
+[island 0] 2026-01-10 17:48:47,642 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.55,top_p=0.9,weight=0.7)...
+[island 0] 2026-01-10 17:49:11,641 | INFO | 3613816 | Successfully retrieved response, using 6983 prompt tokens and 2188 completion tokens.
+[island 0] 2026-01-10 17:49:11,642 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:49:11,644 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:49:11,645 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:49:11,775 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:49:11,775 | INFO | 3613816 | Child solution -> Program(id=0ff8eda1-f2ca-41ea-8c65-47c4924c344f,fitness=0.00000000,island_found=0,iteration_found=16,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: invalid syntax (tmp74z5wq0p.py, line 2)'}).
+[island 0] 2026-01-10 17:49:11,775 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:49:13,429 | INFO | 3613816 | Successfully retrieved embedding, used 3155 tokens
+[island 0] 2026-01-10 17:49:13,429 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:49:13,429 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:49:13,429 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:49:13,429 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:51:19,431 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:51:19,431 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:51:19,432 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:51:19,432 | INFO | 3613816 | Early stopping counter increased: 16/80
+[island 0] 2026-01-10 17:51:19,432 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:51:19,432 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:51:19,432 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:51:19,434 | INFO | 3613816 | ========= EPOCH 17 =========
+[island 0] 2026-01-10 17:51:19,434 | INFO | 3613816 | Global early stopping counter: 16/80
+[island 0] 2026-01-10 17:51:19,434 | INFO | 3613816 | Exploration rate: 0.34912499999999996
+[island 0] 2026-01-10 17:51:19,434 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:51:19,434 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:51:19,434 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 17:51:19,434 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 17:51:19,434 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:51:19,434 | INFO | 3613816 | Exploitation: True
+[island 0] 2026-01-10 17:51:19,434 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:51:19,434 | INFO | 3613816 | Exploitation: Selecting parents using roulette with kwargs {'roulette_by_rank': True}.
+[island 0] 2026-01-10 17:51:19,435 | INFO | 3613816 | Selected 1 inspirations.
+[island 0] 2026-01-10 17:51:19,435 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:51:19,435 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 4).
+[island 0] 2026-01-10 17:51:19,435 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=devstral-2:123b-cloud,temp=0.55,top_p=0.9,weight=0.3)...
+[island 0] 2026-01-10 17:51:44,469 | INFO | 3613816 | Successfully retrieved response, using 7046 prompt tokens and 2708 completion tokens.
+[island 0] 2026-01-10 17:51:44,470 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:51:44,473 | ERROR | 3613816 | Error with SEARCH/REPLACE (evolve solution): 'Search block not found in any evolve blocks: 'def S_TT(ell, params):
+    """
+    Temperature (TT) transfer function.
+
+    S_TT(ell) = 1 - kappa / (1 + (ell-2))^alpha
+
+    alpha = 3/2 is fixed by ... [TRUNCATED]
+[island 0] 2026-01-10 17:51:44,473 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:51:44,473 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:54:02,374 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:54:02,374 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:54:02,375 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:54:02,375 | INFO | 3613816 | Early stopping counter increased: 17/80
+[island 0] 2026-01-10 17:54:02,375 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:54:02,375 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:54:02,376 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:54:02,376 | INFO | 3613816 | ========= EPOCH 18 =========
+[island 0] 2026-01-10 17:54:02,376 | INFO | 3613816 | Global early stopping counter: 17/80
+[island 0] 2026-01-10 17:54:02,376 | INFO | 3613816 | Exploration rate: 0.34912499999999996
+[island 0] 2026-01-10 17:54:02,376 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:54:02,377 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:54:02,377 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 17:54:02,377 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 17:54:02,377 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:54:02,377 | INFO | 3613816 | Exploitation: True
+[island 0] 2026-01-10 17:54:02,377 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:54:02,377 | INFO | 3613816 | Exploitation: Selecting parents using roulette with kwargs {'roulette_by_rank': True}.
+[island 0] 2026-01-10 17:54:02,377 | INFO | 3613816 | Selected 1 inspirations.
+[island 0] 2026-01-10 17:54:02,377 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:54:02,377 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 4).
+[island 0] 2026-01-10 17:54:02,377 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.55,top_p=0.9,weight=0.7)...
+[island 0] 2026-01-10 17:54:26,702 | INFO | 3613816 | Successfully retrieved response, using 6808 prompt tokens and 2693 completion tokens.
+[island 0] 2026-01-10 17:54:26,702 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:54:26,705 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:54:26,706 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:54:26,836 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:54:26,836 | INFO | 3613816 | Child solution -> Program(id=e8e37144-ee06-4dec-9ad8-0d8900e2a407,fitness=0.00000000,island_found=0,iteration_found=18,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: invalid syntax (tmp7px5gnje.py, line 2)'}).
+[island 0] 2026-01-10 17:54:26,836 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:54:28,777 | INFO | 3613816 | Successfully retrieved embedding, used 3558 tokens
+[island 0] 2026-01-10 17:54:28,778 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:54:28,778 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:54:28,778 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:54:28,778 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:56:55,119 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:56:55,119 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:56:55,120 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:56:55,120 | INFO | 3613816 | Early stopping counter increased: 18/80
+[island 0] 2026-01-10 17:56:55,120 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:56:55,120 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:56:55,121 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:56:55,121 | INFO | 3613816 | ========= EPOCH 19 =========
+[island 0] 2026-01-10 17:56:55,121 | INFO | 3613816 | Global early stopping counter: 18/80
+[island 0] 2026-01-10 17:56:55,121 | INFO | 3613816 | Exploration rate: 0.34912499999999996
+[island 0] 2026-01-10 17:56:55,121 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:56:55,121 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:56:55,122 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 17:56:55,122 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 17:56:55,122 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:56:55,122 | INFO | 3613816 | Exploitation: True
+[island 0] 2026-01-10 17:56:55,122 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:56:55,122 | INFO | 3613816 | Exploitation: Selecting parents using roulette with kwargs {'roulette_by_rank': True}.
+[island 0] 2026-01-10 17:56:55,122 | INFO | 3613816 | Selected 1 inspirations.
+[island 0] 2026-01-10 17:56:55,122 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:56:55,122 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 4).
+[island 0] 2026-01-10 17:56:55,122 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.55,top_p=0.9,weight=0.7)...
+[island 0] 2026-01-10 17:58:33,854 | INFO | 3613816 | Successfully retrieved response, using 6768 prompt tokens and 3164 completion tokens.
+[island 0] 2026-01-10 17:58:33,854 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:58:33,856 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 17:58:33,856 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 17:58:33,963 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 17:58:33,963 | INFO | 3613816 | Child solution -> Program(id=6516d634-5260-4946-81be-946991c553f1,fitness=0.32505127,island_found=0,iteration_found=19,returncode=0,eval_metrics={'combined_score': 0.3250512718864184, 'COMBINED_SCORE': 0.3250512718864184, 'chi2_tt': 14.71031... [TRUNCATED]
+[island 0] 2026-01-10 17:58:33,963 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 17:58:34,777 | INFO | 3613816 | Successfully retrieved embedding, used 1574 tokens
+[island 0] 2026-01-10 17:58:34,777 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 17:58:34,777 | INFO | 3613816 | New program is worse than best -> 0.3250512718864184 <= 0.45291113105340086.
+[island 0] 2026-01-10 17:58:34,777 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 17:58:34,778 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | Early stopping counter increased: 19/80
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | ========= EPOCH 20 =========
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | Global early stopping counter: 19/80
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | Exploration rate: 0.34912499999999996
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 17:59:18,405 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 17:59:18,406 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 17:59:18,406 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 17:59:18,406 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 17:59:18,406 | INFO | 3613816 | Exploitation: True
+[island 0] 2026-01-10 17:59:18,406 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 17:59:18,406 | INFO | 3613816 | Exploitation: Selecting parents using roulette with kwargs {'roulette_by_rank': True}.
+[island 0] 2026-01-10 17:59:18,406 | INFO | 3613816 | Selected 1 inspirations.
+[island 0] 2026-01-10 17:59:18,406 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 17:59:18,406 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 4).
+[island 0] 2026-01-10 17:59:18,406 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=devstral-2:123b-cloud,temp=0.55,top_p=0.9,weight=0.3)...
+[island 0] 2026-01-10 17:59:36,423 | INFO | 3613816 | Successfully retrieved response, using 7121 prompt tokens and 2877 completion tokens.
+[island 0] 2026-01-10 17:59:36,423 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 17:59:36,426 | ERROR | 3613816 | Error with SEARCH/REPLACE (evolve solution): 'Search block not found in any evolve blocks: 'def S_TT(ell, params):
+    """
+    Temperature (TT) transfer function.
+
+    S_TT(ell) = 1 - kappa / (1 + (ell-2))^alpha
+
+    alpha = 3/2 is fixed by ... [TRUNCATED]
+[island 0] 2026-01-10 17:59:36,427 | INFO | 3613816 | === CHECKPOINT STEP ===
+[island 0] 2026-01-10 17:59:36,427 | INFO | 3613816 | Waiting for other islands to arrive at barrier...
+[island 0] 2026-01-10 18:01:11,495 | INFO | 3613816 | All islands arrived. Proceeding to save ckpt.
+[island 0] 2026-01-10 18:01:11,496 | INFO | 3613816 | Saved best solution at 'experiments/torsion_problem/run_1/0/best_sol.py'.
+[island 0] 2026-01-10 18:01:11,497 | INFO | 3613816 | Saved best prompt at 'experiments/torsion_problem/run_1/0/best_prompt.txt'.
+[island 0] 2026-01-10 18:01:11,497 | INFO | 3613816 | Checkpoint 20 successfully saved.
+[island 0] 2026-01-10 18:01:11,497 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 18:01:11,497 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 18:01:11,499 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:01:11,499 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | Early stopping counter increased: 20/80
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | ========= EPOCH 21 =========
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | Global early stopping counter: 20/80
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | Exploration rate: 0.36658124999999997
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | Exploration: True
+[island 0] 2026-01-10 18:01:11,500 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 18:01:11,501 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 18:01:11,501 | INFO | 3613816 | Exploration: selecting parents uniformly at random.
+[island 0] 2026-01-10 18:01:11,501 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 18:01:11,501 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 18:01:11,501 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 18:02:42,223 | INFO | 3613816 | Successfully retrieved response, using 3991 prompt tokens and 12132 completion tokens.
+[island 0] 2026-01-10 18:02:42,224 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 18:02:42,226 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 18:02:42,226 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 18:02:42,227 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 18:02:42,227 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 18:02:42,227 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=kimi-k2:1t-cloud,temp=0.75,top_p=0.92,weight=0.4)...
+[island 0] 2026-01-10 18:03:58,776 | INFO | 3613816 | Successfully retrieved response, using 4078 prompt tokens and 2858 completion tokens.
+[island 0] 2026-01-10 18:03:58,777 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 18:03:58,781 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 18:03:58,781 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 18:03:58,899 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 18:03:58,899 | INFO | 3613816 | Child solution -> Program(id=78eaef31-7202-4a51-9699-151e3c5f6aa5,fitness=0.00572686,island_found=0,iteration_found=21,returncode=0,eval_metrics={'combined_score': 0.005726861772286776, 'COMBINED_SCORE': 0.005726861772286776, 'chi2_tt': 51.3... [TRUNCATED]
+[island 0] 2026-01-10 18:03:58,899 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 18:03:58,899 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 18:04:00,018 | INFO | 3613816 | Successfully retrieved embedding, used 2184 tokens
+[island 0] 2026-01-10 18:04:00,018 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 18:04:00,018 | INFO | 3613816 | New program is worse than best -> 0.005726861772286776 <= 0.45291113105340086.
+[island 0] 2026-01-10 18:04:00,018 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 18:04:00,018 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 18:04:00,018 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:04:00,018 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Early stopping counter increased: 21/80
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | ========= EPOCH 22 =========
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Global early stopping counter: 21/80
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Exploration rate: 0.36658124999999997
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Exploration: True
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Exploration: selecting parents uniformly at random.
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 18:04:00,019 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 18:05:15,978 | INFO | 3613816 | Successfully retrieved response, using 4776 prompt tokens and 10518 completion tokens.
+[island 0] 2026-01-10 18:05:15,979 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 18:05:15,979 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 18:05:15,979 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 18:05:15,979 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 18:05:15,979 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 18:05:15,979 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.75,top_p=0.92,weight=0.6)...
+[island 0] 2026-01-10 18:05:35,834 | INFO | 3613816 | Successfully retrieved response, using 5107 prompt tokens and 2221 completion tokens.
+[island 0] 2026-01-10 18:05:35,834 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 18:05:35,839 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 18:05:35,839 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 18:05:35,969 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 18:05:35,969 | INFO | 3613816 | Child solution -> Program(id=8b364c63-db76-4b21-8396-cc0d654c073f,fitness=0.00000000,island_found=0,iteration_found=22,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: unterminated triple-quoted string literal (detected at... [TRUNCATED]
+[island 0] 2026-01-10 18:05:35,969 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 18:05:35,969 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 18:05:38,272 | INFO | 3613816 | Successfully retrieved embedding, used 4095 tokens
+[island 0] 2026-01-10 18:05:38,272 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 18:05:38,272 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 18:05:38,272 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 18:05:38,272 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 18:06:16,699 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:06:16,699 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 18:06:16,699 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:06:16,699 | INFO | 3613816 | Early stopping counter increased: 22/80
+[island 0] 2026-01-10 18:06:16,700 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 18:06:16,700 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 18:06:16,705 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 18:06:16,705 | INFO | 3613816 | ========= EPOCH 23 =========
+[island 0] 2026-01-10 18:06:16,705 | INFO | 3613816 | Global early stopping counter: 22/80
+[island 0] 2026-01-10 18:06:16,705 | INFO | 3613816 | Exploration rate: 0.36658124999999997
+[island 0] 2026-01-10 18:06:16,705 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 18:06:16,706 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 18:06:16,706 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 18:06:16,706 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 18:06:16,706 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 18:06:16,706 | INFO | 3613816 | Exploitation: True
+[island 0] 2026-01-10 18:06:16,706 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 18:06:16,706 | INFO | 3613816 | Exploitation: Selecting parents using roulette with kwargs {'roulette_by_rank': True}.
+[island 0] 2026-01-10 18:06:16,706 | INFO | 3613816 | Selected 1 inspirations.
+[island 0] 2026-01-10 18:06:16,706 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 18:06:16,706 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 4).
+[island 0] 2026-01-10 18:06:16,706 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=devstral-2:123b-cloud,temp=0.55,top_p=0.9,weight=0.3)...
+[island 0] 2026-01-10 18:07:23,737 | INFO | 3613816 | Successfully retrieved response, using 7121 prompt tokens and 2725 completion tokens.
+[island 0] 2026-01-10 18:07:23,738 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 18:07:23,741 | ERROR | 3613816 | Error with SEARCH/REPLACE (evolve solution): 'Search block not found in any evolve blocks: 'def S_TT(ell, params):
+    """
+    Temperature (TT) transfer function.
+
+    S_TT(ell) = 1 - kappa / (1 + (ell-2))^alpha
+
+    alpha = 3/2 is fixed by ... [TRUNCATED]
+[island 0] 2026-01-10 18:07:23,741 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 18:07:23,742 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 18:07:52,607 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:07:52,607 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 18:07:52,607 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:07:52,607 | INFO | 3613816 | Early stopping counter increased: 23/80
+[island 0] 2026-01-10 18:07:52,607 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 18:07:52,607 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | ========= EPOCH 24 =========
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | Global early stopping counter: 23/80
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | Exploration rate: 0.36658124999999997
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | Exploration: True
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | Exploration: selecting parents uniformly at random.
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 18:07:52,608 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 18:08:41,664 | INFO | 3613816 | Successfully retrieved response, using 4008 prompt tokens and 9067 completion tokens.
+[island 0] 2026-01-10 18:08:41,665 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 18:08:41,666 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 18:08:41,666 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 18:08:41,667 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 18:08:41,667 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 18:08:41,668 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.75,top_p=0.92,weight=0.6)...
+[island 0] 2026-01-10 18:09:11,892 | INFO | 3613816 | Successfully retrieved response, using 4336 prompt tokens and 3229 completion tokens.
+[island 0] 2026-01-10 18:09:11,893 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 18:09:11,897 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 18:09:11,897 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 18:09:12,029 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 18:09:12,029 | INFO | 3613816 | Child solution -> Program(id=6d588725-1de3-4bc1-a0ff-1772a604e4d7,fitness=0.00000000,island_found=0,iteration_found=24,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: invalid syntax (tmpz989zau_.py, line 2)'}).
+[island 0] 2026-01-10 18:09:12,029 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 18:09:12,029 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 18:09:14,314 | INFO | 3613816 | Successfully retrieved embedding, used 4095 tokens
+[island 0] 2026-01-10 18:09:14,314 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 18:09:14,314 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 18:09:14,314 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 18:09:14,314 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 18:10:27,569 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:10:27,569 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 18:10:27,569 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:10:27,569 | INFO | 3613816 | Early stopping counter increased: 24/80
+[island 0] 2026-01-10 18:10:27,569 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 18:10:27,569 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 18:10:27,570 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 18:10:27,570 | INFO | 3613816 | ========= EPOCH 25 =========
+[island 0] 2026-01-10 18:10:27,570 | INFO | 3613816 | Global early stopping counter: 24/80
+[island 0] 2026-01-10 18:10:27,570 | INFO | 3613816 | Exploration rate: 0.36658124999999997
+[island 0] 2026-01-10 18:10:27,572 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 18:10:27,572 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 18:10:27,572 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 18:10:27,572 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 18:10:27,572 | INFO | 3613816 | Exploration: False
+[island 0] 2026-01-10 18:10:27,572 | INFO | 3613816 | Exploitation: True
+[island 0] 2026-01-10 18:10:27,572 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 18:10:27,573 | INFO | 3613816 | Exploitation: Selecting parents using roulette with kwargs {'roulette_by_rank': True}.
+[island 0] 2026-01-10 18:10:27,573 | INFO | 3613816 | Selected 1 inspirations.
+[island 0] 2026-01-10 18:10:27,573 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 18:10:27,573 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 4).
+[island 0] 2026-01-10 18:10:27,573 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=devstral-2:123b-cloud,temp=0.55,top_p=0.9,weight=0.3)...
+[island 0] 2026-01-10 18:11:21,699 | INFO | 3613816 | Successfully retrieved response, using 7604 prompt tokens and 3698 completion tokens.
+[island 0] 2026-01-10 18:11:21,699 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 18:11:21,700 | ERROR | 3613816 | Error with SEARCH/REPLACE (evolve solution): 'Search block not found in any evolve blocks: 'def S_TT(ell, params):
+    """
+    Temperature (TT) transfer function with quantum bounce corrections.
+
+    Incorporates:
+    - ECSK spin-torsion cou... [TRUNCATED]
+[island 0] 2026-01-10 18:11:21,700 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 18:11:21,700 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 18:13:10,258 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:13:10,258 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Early stopping counter increased: 25/80
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | ========= EPOCH 26 =========
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Global early stopping counter: 25/80
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Exploration rate: 0.38491031249999996
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Exploration: True
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Exploration: selecting parents uniformly at random.
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 18:13:10,259 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 18:14:07,099 | INFO | 3613816 | Successfully retrieved response, using 5334 prompt tokens and 10725 completion tokens.
+[island 0] 2026-01-10 18:14:07,100 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 18:14:07,100 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 18:14:07,100 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 18:14:07,100 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 18:14:07,100 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 18:14:07,100 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=qwen3-coder:480b-cloud,temp=0.75,top_p=0.92,weight=0.6)...
+[island 0] 2026-01-10 18:14:26,510 | INFO | 3613816 | Successfully retrieved response, using 5621 prompt tokens and 2219 completion tokens.
+[island 0] 2026-01-10 18:14:26,511 | INFO | 3613816 | Attempting to SEARCH/REPLACE on solution...
+[island 0] 2026-01-10 18:14:26,515 | INFO | 3613816 | Successfully modified parent solution.
+[island 0] 2026-01-10 18:14:26,516 | INFO | 3613816 | Attempting to evaluate program...
+[island 0] 2026-01-10 18:14:26,648 | INFO | 3613816 | Evaluated program without errors.
+[island 0] 2026-01-10 18:14:26,648 | INFO | 3613816 | Child solution -> Program(id=1d2a66cf-c6ab-4c01-8fd6-93b2eadbaf7f,fitness=0.00000000,island_found=0,iteration_found=26,returncode=0,eval_metrics={'combined_score': 0.0, 'error': 'import: unterminated triple-quoted string literal (detected at... [TRUNCATED]
+[island 0] 2026-01-10 18:14:26,648 | INFO | 3613816 | Child solution improves on parent prompt fitness.
+[island 0] 2026-01-10 18:14:26,648 | INFO | 3613816 | Attempting to obtain embedding with model qwen3-embedding:4b...
+[island 0] 2026-01-10 18:14:28,979 | INFO | 3613816 | Successfully retrieved embedding, used 4095 tokens
+[island 0] 2026-01-10 18:14:28,979 | INFO | 3613816 | Adding child_sol to sol_db.
+[island 0] 2026-01-10 18:14:28,979 | INFO | 3613816 | New program is worse than best -> 0.0 <= 0.45291113105340086.
+[island 0] 2026-01-10 18:14:28,979 | INFO | 3613816 | === GLOBAL EARLY STOPPING CHECK STEP ===
+[island 0] 2026-01-10 18:14:28,979 | INFO | 3613816 | Waiting for all islands to report progress...
+[island 0] 2026-01-10 18:14:58,058 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:14:58,058 | INFO | 3613816 | Waiting for other islands to finish early stopping check...
+[island 0] 2026-01-10 18:14:58,058 | INFO | 3613816 | All islands synced.
+[island 0] 2026-01-10 18:14:58,059 | INFO | 3613816 | Early stopping counter increased: 26/80
+[island 0] 2026-01-10 18:14:58,059 | INFO | 3613816 | === END EPOCH SYNC STEP ===
+[island 0] 2026-01-10 18:14:58,059 | INFO | 3613816 | Waiting for other islands to finish epoch...
+[island 0] 2026-01-10 18:14:58,059 | INFO | 3613816 | All islands finished. Moving to next epoch.
+[island 0] 2026-01-10 18:14:58,059 | INFO | 3613816 | ========= EPOCH 27 =========
+[island 0] 2026-01-10 18:14:58,059 | INFO | 3613816 | Global early stopping counter: 26/80
+[island 0] 2026-01-10 18:14:58,059 | INFO | 3613816 | Exploration rate: 0.38491031249999996
+[island 0] 2026-01-10 18:14:58,059 | INFO | 3613816 | Best prompt: Program(id=5d008e2c-c796-4c85-8c2e-93bc51feae38,fitness=0.41034722,island_found=0,iteration_found=2,returncode=None,eval_metrics={})
+[island 0] 2026-01-10 18:14:58,059 | INFO | 3613816 | Best solution: Program(id=b721b19d-0d0b-4d99-8e94-3a2217bd25b5,fitness=0.45291113,island_found=0,iteration_found=0,returncode=0,eval_metrics={'combined_score': 0.45291113105340086, 'COMBINED_SCORE': 0.45291113105340086, 'chi2_tt': 18.1505967... [TRUNCATED]
+[island 0] 2026-01-10 18:14:58,059 | INFO | 3613816 | sol_db EliteMap: {(9, 0): ('b721b19d-0d0b-4d99-8e94-3a2217bd25b5', 0.45291113105340086), (9, 1): ('45c0466d-a5e3-45eb-931c-a6ad966b74bd', 0.3951096677499726)}
+[island 0] 2026-01-10 18:14:58,060 | INFO | 3613816 | Generating initial populations: False
+[island 0] 2026-01-10 18:14:58,060 | INFO | 3613816 | Exploration: True
+[island 0] 2026-01-10 18:14:58,060 | INFO | 3613816 | Exploitation: False
+[island 0] 2026-01-10 18:14:58,060 | INFO | 3613816 | === SELECTION STEP ===
+[island 0] 2026-01-10 18:14:58,060 | INFO | 3613816 | Exploration: selecting parents uniformly at random.
+[island 0] 2026-01-10 18:14:58,060 | INFO | 3613816 | Selected 0 inspirations.
+[island 0] 2026-01-10 18:14:58,060 | INFO | 3613816 | === META-PROMPT STEP ===
+[island 0] 2026-01-10 18:14:58,060 | INFO | 3613816 | Attempting to run meta_prompt on OpenAILM(model_name=qwen3-next:80b-cloud,temp=0.35,top_p=0.9,weight=1)...
+[island 0] 2026-01-10 18:15:56,702 | INFO | 3613816 | Successfully retrieved response, using 4234 prompt tokens and 11148 completion tokens.
+[island 0] 2026-01-10 18:15:56,702 | INFO | 3613816 | Attempting to SEARCH/REPLACE on prompt...
+[island 0] 2026-01-10 18:15:56,704 | INFO | 3613816 | Successfully modified parent prompt.
+[island 0] 2026-01-10 18:15:56,705 | INFO | 3613816 | Adding child_prompt to prompt_db.
+[island 0] 2026-01-10 18:15:56,705 | INFO | 3613816 | === EVOLVE CODE STEP ===
+[island 0] 2026-01-10 18:15:56,706 | INFO | 3613816 | Chat consists of 2 messages (max_chat_depth = 0).
+[island 0] 2026-01-10 18:15:56,706 | INFO | 3613816 | Attempting to run prompt on OpenAILM(model_name=kimi-k2:1t-cloud,temp=0.75,top_p=0.92,weight=0.4)...

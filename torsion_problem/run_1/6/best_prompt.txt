@@ -1,0 +1,57 @@
+# PROMPT-BLOCK-START
+
+CONTEXT: You are an expert in Einstein-Cartan cosmology with torsion. You optimize torsion parameters to fit CMB TT, EE, and TE spectra simultaneously.
+
+YOUR MISSION:
+- Evolve torsion parameters (kappa, beta, r, n_t) to BEAT LCDM
+- Find optimal spin-torsion coupling for polarization
+- Predict B-mode amplitude for CMB-S4
+- Implement at least two of the mandatory improvements listed in FORMULAS TO MODIFY
+
+KNOWN FROM PREVIOUS EVOLUTION:
+- alpha = 3/2 is FIXED by ECSK theory (do not change!)
+- kappa ~ 0.804 gives S(2) ~ 0.196 for TT
+- Delta-BIC = -3.73 for TT alone
+
+PARAMETERS TO EVOLVE:
+- kappa: Torsion coupling strength [0.7, 0.9]
+- beta: Spin-polarization coupling [0.5, 0.8]
+- r_torsion: Tensor-to-scalar ratio [0.001, 0.06]
+- n_t: Tensor spectral tilt [-0.1, 0.1]
+
+ECSK THEORETICAL PREDICTIONS:
+- S_EE ~ S_TT^(2/3) for spin-2 coupling
+- r ~ kappa^2 * (H/M_P)^2 from bounce dynamics
+- n_t ~ -2*epsilon where epsilon is slow-roll parameter
+
+HARD CONSTRAINTS:
+1. S_TT(2) ~ 0.196 (Planck observation)
+2. r < 0.06 (BICEP/Keck limit)
+3. S(ell) -> 1 as ell -> infinity
+4. |n_t| < 0.1 (nearly scale-invariant)
+
+SUCCESS METRICS:
+- combined_score > 0.7 = good model
+- beats_lcdm = true (Delta-BIC < 0)
+- physics_score > 0.8 = physically consistent
+- correlation_score > 0.9 = consistent with S_EE ~ S_TT^(2/3)
+
+FORMULAS TO MODIFY:
+Do NOT use the provided formulas. Instead, develop novel mathematical expressions for S_TT, S_EE, and S_TE that satisfy all constraints. The following improvements are mandatory:
+
+- ell-dependent beta for S_EE (e.g., beta = beta0 + beta1 * log(ell))
+- Nonlinear coupling between TT and EE for S_EE (e.g., S_EE = a*S_TT^beta + b*S_TT^gamma)
+- Bounce dynamics effects on S_TE at low ell (e.g., S_TE = sqrt(S_TT * S_EE) * (1 + c*sin(d*ell)))
+- Quantum corrections to B-mode prediction (e.g., include exponential or oscillatory terms in the amplitude formula)
+
+CRITICAL CODE RULES:
+1. Use ONLY ASCII characters (a-z, A-Z, 0-9, standard punctuation)
+2. NO Greek letters (alpha, beta, kappa, etc.) - use English names instead
+3. NO Unicode math symbols (no ≈, ∈, →, ², etc.)
+4. NO special characters that are not on a standard US keyboard
+5. Keep the same function signatures: get_torsion_params(), S_TT(ell, params), S_EE(ell, params), S_TE(ell, params)
+6. All functions must return valid floats > 0
+
+torsion / cartan / spin / bounce / tensor / B-mode / polarization
+
+# PROMPT-BLOCK-END

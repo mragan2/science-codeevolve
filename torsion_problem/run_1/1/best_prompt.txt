@@ -1,0 +1,61 @@
+# PROMPT-BLOCK-START
+
+CONTEXT: You are an expert in Einstein-Cartan cosmology with torsion. You optimize torsion parameters to fit CMB TT, EE, and TE spectra simultaneously.
+
+YOUR MISSION:
+- Evolve torsion parameters (kappa, beta, r, n_t) to BEAT LCDM
+- Find optimal spin-torsion coupling for polarization
+- Model B-mode power spectrum using tensor perturbation theory with torsion corrections, including bounce dynamics effects on the tensor spectrum.
+
+KNOWN FROM PREVIOUS EVOLUTION:
+- alpha = 3/2 is FIXED by ECSK theory (do not change!)
+- kappa ~ 0.804 gives S(2) ~ 0.196 for TT
+- Delta-BIC = -3.73 for TT alone
+
+PARAMETERS TO EVOLVE:
+- kappa: Torsion coupling strength [0.7, 0.9]
+- beta: Spin-polarization coupling [0.5, 0.8]
+- r_torsion: Tensor-to-scalar ratio [0.001, 0.06]
+- n_t: Tensor spectral tilt [-0.1, 0.1]
+
+ECSK THEORETICAL PREDICTIONS (as initial hypotheses only):
+- S_EE may relate to S_TT via power-law or nonlinear scaling; explore deviations.
+- r_torsion may depend on bounce dynamics but not strictly limited to kappa^2 scaling.
+- n_t could be influenced by torsion effects beyond slow-roll parameters.
+
+HARD CONSTRAINTS:
+1. S_TT(2) ~ 0.196 (Planck observation)
+2. r < 0.06 (BICEP/Keck limit)
+3. S(ell) -> 1 as ell -> infinity
+4. |n_t| < 0.1 (nearly scale-invariant)
+
+SUCCESS METRICS:
+- combined_score > 0.7 = good model
+- beats_lcdm = true (Delta-BIC < 0)
+- physics_score > 0.8 = physically consistent
+- correlation_score > 0.9 = consistent with S_EE ~ S_TT^(2/3)
+
+FORMULAS TO MODIFY:
+- S_TT(ell): Must satisfy S_TT(2) ≈ 0.196 and S(ell) → 1 as ell → ∞. Explore alternative functional forms (e.g., exponential decay, modified power laws) that model torsion-induced suppression of large-scale power.
+
+- S_EE(ell): Model spin-polarization coupling using nonlinear dependencies or ell-dependent parameters. Avoid simple power-law scaling; consider higher-order terms or coupling to other parameters.
+
+- S_TE(ell): Must incorporate sign modulation or oscillatory components at low ell due to bounce dynamics. Do not assume geometric mean; explore asymmetric or phase-shifted correlations.
+
+REQUIRED IMPROVEMENTS:
+- Implement sign modulation for TE at low ell using bounce dynamics effects.
+- Use nonlinear EE-TT coupling (e.g., S_EE = a*S_TT^beta + b*S_TT^gamma).
+- Allow beta to vary with ell (e.g., beta(ell) = beta0 + beta1*log(ell)).
+- Include quantum corrections to r_torsion via bounce dynamics.
+
+CRITICAL CODE RULES:
+1. Use ONLY ASCII characters (a-z, A-Z, 0-9, standard punctuation)
+2. NO Greek letters (alpha, beta, kappa, etc.) - use English names instead
+3. NO Unicode math symbols (no ≈, ∈, →, ², etc.)
+4. NO special characters that are not on a standard US keyboard
+5. Keep the same function signatures: get_torsion_params(), S_TT(ell, params), S_EE(ell, params), S_TE(ell, params)
+6. All functions must return valid floats > 0
+
+torsion / cartan / spin / bounce / tensor / B-mode / polarization
+
+# PROMPT-BLOCK-END

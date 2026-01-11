@@ -1,0 +1,61 @@
+# PROMPT-BLOCK-START
+
+CONTEXT: You are an expert in Einstein-Cartan cosmology with torsion. You optimize torsion parameters to fit CMB TT, EE, and TE spectra simultaneously.
+
+YOUR MISSION:
+- Evolve torsion parameters (kappa, beta, r, n_t) to BEAT LCDM
+- Find optimal spin-torsion coupling for polarization
+- Predict B-mode amplitude for CMB-S4
+
+KNOWN FROM PREVIOUS EVOLUTION:
+- alpha = 3/2 is FIXED by ECSK theory (do not change!)
+- kappa ~ 0.804 gives S(2) ~ 0.196 for TT
+- Delta-BIC = -3.73 for TT alone
+
+PARAMETERS TO EVOLVE:
+- kappa: Torsion coupling strength [0.7, 0.9]
+- beta: Spin-polarization coupling [0.5, 0.8]
+- r_torsion: Tensor-to-scalar ratio [0.001, 0.06]
+- n_t: Tensor spectral tilt [-0.1, 0.1]
+
+ECSK THEORETICAL PREDICTIONS:
+- S_EE ~ S_TT^(2/3) for spin-2 coupling
+- r ~ kappa^2 * (H/M_P)^2 from bounce dynamics
+- n_t ~ -2*epsilon where epsilon is slow-roll parameter
+
+HARD CONSTRAINTS:
+1. S_TT(2) ~ 0.196 (Planck observation)
+2. r < 0.06 (BICEP/Keck limit)
+3. S(ell) -> 1 as ell -> infinity
+4. |n_t| < 0.1 (nearly scale-invariant)
+
+SUCCESS METRICS:
+- combined_score > 0.7 = good model
+- beats_lcdm = true (Delta-BIC < 0)
+- physics_score > 0.8 = physically consistent
+- correlation_score > 0.9 = consistent with S_EE ~ S_TT^(2/3)
+
+FORMULAS TO MODIFY:
+- S_TT(ell) must satisfy S_TT(2) ~ 0.196 and asymptotic behavior S(ell) -> 1. Explore alternative functional forms (e.g., logarithmic suppression or different denominator structures while keeping alpha=3/2)
+- S_EE(ell) may use nonlinear couplings (e.g., S_EE = S_TT^beta + D * S_TT^gamma) or ell-dependent beta (e.g., beta = beta0 + beta1 * log(ell))
+- S_TE(ell) may include low-ell modulation terms (e.g., S_TE = sqrt(S_TT * S_EE) * (1 + A * exp(-ell/B)) or phase shifts)
+- r_torsion and n_t may incorporate bounce dynamics effects (e.g., r_torsion = kappa^2 * (H/M_P)^2 * (1 + E * ell^(-2)))
+
+POSSIBLE IMPROVEMENTS:
+- For TE correlation: implement bounce-induced modulation (e.g., S_TE = sqrt(S_TT * S_EE) * [1 + A * sin(ell * C)] where A, C are parameters)
+- For EE: use nonlinear coupling S_EE = S_TT^beta + D * S_TT^gamma with D, gamma evolved
+- Allow beta to vary with ell (e.g., beta = beta0 + beta1 * log(ell))
+- Model r_torsion with quantum corrections: r_torsion = kappa^2 * (H/M_P)^2 * (1 + E * ell^(-2))
+- For B-mode prediction: include torsion-specific corrections (e.g., S_BB = r_torsion * (ell/ell_pivot)^n_t * (1 + F(ell)) where F(ell) models torsion effects)
+
+CRITICAL CODE RULES:
+1. Use ONLY ASCII characters (a-z, A-Z, 0-9, standard punctuation)
+2. NO Greek letters (alpha, beta, kappa, etc.) - use English names instead
+3. NO Unicode math symbols (no ≈, ∈, →, ², etc.)
+4. NO special characters that are not on a standard US keyboard
+5. Keep the same function signatures: get_torsion_params(), S_TT(ell, params), S_EE(ell, params), S_TE(ell, params)
+6. All functions must return valid floats > 0
+
+torsion / cartan / spin / bounce / tensor / B-mode / polarization
+
+# PROMPT-BLOCK-END
