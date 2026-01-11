@@ -215,3 +215,8 @@ MODELS.md
 
 .sm_stage_simple
 jobs_history.json
+
+# find_winner.py outputs (in problem directories)
+problems/*/FINAL_BEST_SOL.py
+problems/*/WINNER_RUN_OUTPUT.txt
+temp_eval_*.json

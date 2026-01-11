@@ -98,7 +98,11 @@ def S_EE(ell, params):
         beta_ell = 0.50 - 0.008 * (ell_float - 20.0)  # Slower decrease
     else:
         beta_ell = 0.38 - 0.001 * (ell_float - 35.0)  # Very slow decrease
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> d2d13a86f765e0ca72d1cf4e845120ad4bae373b
     beta_ell = max(0.35, min(0.68, beta_ell))  # Clamp to reasonable range
 
     x = float(ell) - 2.0
@@ -131,7 +135,11 @@ def S_TE(ell, params):
     # Using rational function instead of tanh for smooth crossover
     transition_point = 3.5
     stiffness = 1.5 # How sharp is the transition?
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> d2d13a86f765e0ca72d1cf4e845120ad4bae373b
     # Rational function approximation to tanh-like behavior
     x_norm = (float(ell) - transition_point) * stiffness
     phase_factor = x_norm / math.sqrt(1.0 + x_norm**2)  # Soft sign function
