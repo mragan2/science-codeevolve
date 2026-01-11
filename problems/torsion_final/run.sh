@@ -1,9 +1,21 @@
 #!/bin/bash
+# ===--------------------------------------------------------------------------------------===#
+#
+# Part of the CodeEvolve Project, under the Apache License v2.0.
+# See https://github.com/inter-co/science-codeevolve/blob/main/LICENSE for license information.
+# SPDX-License-Identifier: Apache-2.0
+#
+# ===--------------------------------------------------------------------------------------===#
+#
+# This file provides a template for executing CodeEvolve in the terminal using bash.
+#
+# ===--------------------------------------------------------------------------------------===#
+
 PROB_NAME="torsion_final"
 BASE_DIR="problems/${PROB_NAME}"
 INPT_DIR="${BASE_DIR}/input"
 CFG_PATH="${BASE_DIR}/configs/config.yaml"
-OUT_DIR="experiments/${PROB_NAME}/run_1"
+OUT_DIR="experiments/${PROB_NAME}/MR_$(date +%Y%m%d)"
 LOAD_CKPT="0"
 CPU_LIST="0-7"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"

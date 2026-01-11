@@ -1,13 +1,3 @@
-"""
-Template find_winner.py script
-===============================
-
-This is a reference template. Each problem directory should have its own
-find_winner.py configured for that specific problem.
-
-See problems/*/find_winner.py for problem-specific implementations.
-"""
-
 import os
 import glob
 import subprocess
@@ -15,21 +5,24 @@ import json
 import shutil
 import sys
 
-# 1. SETUP: Where to look?
-# Note: Each problem-specific find_winner.py should configure these paths
-SEARCH_DIRS = [
-    "experiments/torsion_final/run_1"
-]
-EVALUATOR_SCRIPT = "/home/rag/Projects/science-codeevolve/problems/torsion_final/input/evaluate.py"
+# Get the directory where this script is located
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-WINNER_COPY_PATH = "FINAL_BEST_SOL.py"
-WINNER_RUN_OUTPUT = "WINNER_RUN_OUTPUT.txt"
+# 1. SETUP: Where to look?
+SEARCH_DIRS = [
+    os.path.join(SCRIPT_DIR, "../../experiments/torsion_final")
+]
+EVALUATOR_SCRIPT = os.path.join(SCRIPT_DIR, "input/evaluate.py")
+
+WINNER_COPY_PATH = os.path.join(SCRIPT_DIR, "FINAL_BEST_SOL.py")
+WINNER_RUN_OUTPUT = os.path.join(SCRIPT_DIR, "WINNER_RUN_OUTPUT.txt")
 
 def find_and_rank():
     # Find all best_sol.py files in numbered subdirectories (0/best_sol.py, 1/best_sol.py...)
     candidate_files = []
     for run_dir in SEARCH_DIRS:
-        pattern = os.path.join(run_dir, "*", "best_sol.py")
+        # SEARCH_DIRS already contains absolute paths
+        pattern = os.path.join(run_dir, "*", "*", "best_sol.py")
         candidate_files.extend(glob.glob(pattern))
 
     if not candidate_files:
@@ -44,7 +37,7 @@ def find_and_rank():
     results = []
 
     for file_path in candidate_files:
-        # Create a display name (e.g., "run_mr3/8")
+        # Create a display name (e.g., "run_1/0")
         display_name = "/".join(file_path.split("/")[-3:-1])
 
         # Unique temp json per candidate folder
@@ -82,7 +75,7 @@ def find_and_rank():
     print(f"\n🏆 WINNER: {winner_path}")
     print(f"   SCORE : {winner_score:.8f}")
 
-    # Copy winner to repo root
+    # Copy winner to problem directory
     shutil.copy(winner_path, WINNER_COPY_PATH)
     print(f"   💾 Saved to: {WINNER_COPY_PATH}")
 
@@ -121,4 +114,3 @@ if __name__ == "__main__":
         print(f"❌ Error: Could not find '{EVALUATOR_SCRIPT}'")
     else:
         find_and_rank()
-
