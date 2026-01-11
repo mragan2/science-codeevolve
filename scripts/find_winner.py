@@ -1,3 +1,13 @@
+"""
+Template find_winner.py script
+===============================
+
+This is a reference template. Each problem directory should have its own
+find_winner.py configured for that specific problem.
+
+See problems/*/find_winner.py for problem-specific implementations.
+"""
+
 import os
 import glob
 import subprocess
@@ -6,6 +16,7 @@ import shutil
 import sys
 
 # 1. SETUP: Where to look?
+# Note: Each problem-specific find_winner.py should configure these paths
 SEARCH_DIRS = [
     "experiments/torsion_final/run_1"
 ]
