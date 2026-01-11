@@ -7,7 +7,7 @@ import sys
 
 # 1. SETUP: Where to look?
 SEARCH_DIRS = [
-    "experiments/torsion_final/run_1"
+    "experiments/torsion_final/run_2"
 ]
 EVALUATOR_SCRIPT = "/home/rag/Projects/science-codeevolve/problems/torsion_final/input/evaluate.py"
 

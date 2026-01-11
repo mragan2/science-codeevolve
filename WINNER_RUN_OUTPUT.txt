@@ -1,25 +1,3 @@
-COMMAND: /home/rag/miniconda3/bin/python experiments/torsion_final/run_1/2/best_sol.py
+COMMAND: /home/rag/miniconda3/bin/python experiments/torsion_final/run_2/2/best_sol.py
 RETURN_CODE: 0
-
-STDOUT:
-Einstein-Cartan Torsion Model - ULTIMATE BEST
-==================================================
-
-Parameters: {} (empty = no BIC penalty)
-
-Hardcoded values:
-  alpha = 1.40
-  kappa = 0.804
-  ee_base = 0.63
-  TE sign-flip at ell=2,3
-
-Transfer Functions:
- ell     S_TT     S_EE     S_TE
---------------------------------
-   2   0.1960   0.4477   0.3318
-   3   0.7154   0.7943   0.8443
-   4   0.8450   0.8863   0.8146
-   5   0.8989   0.9247   0.8627
-  10   0.9649   0.9771   0.9329
-  15   0.9802   0.9872   0.9558
 
