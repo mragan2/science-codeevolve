@@ -10,7 +10,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 1. SETUP: Where to look?
 SEARCH_DIRS = [
-    "../../experiments/torsion_final"
+    os.path.join(SCRIPT_DIR, "../../experiments/torsion_final")
 ]
 EVALUATOR_SCRIPT = os.path.join(SCRIPT_DIR, "input/evaluate.py")
 
@@ -21,9 +21,8 @@ def find_and_rank():
     # Find all best_sol.py files in numbered subdirectories (0/best_sol.py, 1/best_sol.py...)
     candidate_files = []
     for run_dir in SEARCH_DIRS:
-        # Convert relative path to absolute
-        abs_run_dir = os.path.join(SCRIPT_DIR, run_dir)
-        pattern = os.path.join(abs_run_dir, "*", "*", "best_sol.py")
+        # SEARCH_DIRS already contains absolute paths
+        pattern = os.path.join(run_dir, "*", "*", "best_sol.py")
         candidate_files.extend(glob.glob(pattern))
 
     if not candidate_files:

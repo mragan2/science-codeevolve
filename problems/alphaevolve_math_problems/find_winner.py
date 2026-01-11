@@ -12,7 +12,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 # Note: alphaevolve_math_problems contains multiple sub-problems
 # This script will look for results in the experiments directory
 SEARCH_DIRS = [
-    "../../experiments/alphaevolve_math_problems"
+    os.path.join(SCRIPT_DIR, "../../experiments/alphaevolve_math_problems")
 ]
 
 # Note: Since this is a collection of problems, you may need to specify
