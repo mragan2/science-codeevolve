@@ -39,41 +39,46 @@ def get_torsion_params():
 
 def S_TT(ell, params):
     """
-    Temperature (TT) transfer function with optimized running alpha.
+    Temperature (TT) transfer function with enhanced running alpha.
     
     S_TT(ell) = 1 - kappa / (1 + (ell-2))^alpha(ell)
     
     alpha(ell) = alpha_base + alpha_running * exp(-x/scale_alpha)
     
     Hardcoded:
-    - alpha_base = 1.44 (optimized from best models)
-    - alpha_running = 0.025 (enhanced running strength)
-    - scale_alpha = 5.0 (optimized decay scale)
+    - alpha_base = 1.45 (optimized from best models)
+    - alpha_running = 0.032 (enhanced running strength)
+    - scale_alpha = 5.5 (optimized decay scale)
     - kappa = 0.804 (quadrupole constraint)
     """
     kappa = 0.804
-    alpha_base = 1.44
-    alpha_running = 0.025
-    scale_alpha = 5.0
+    alpha_base = 1.45
+    alpha_running = 0.032
+    scale_alpha = 5.5
     
     x = float(ell) - 2.0
     if x <= 0:
         return 1.0 - kappa  # S(2) = 0.196
     
-    # Optimized running alpha with primary component
+    # Enhanced running alpha with primary component
     alpha_ell = alpha_base + alpha_running * math.exp(-x / scale_alpha)
     
     # Add refined oscillatory correction for non-power-law behavior
-    osc_corr = 0.015 * math.sin(x / 2.6)
+    osc_corr = 0.022 * math.sin(x / 2.2)
     alpha_ell = alpha_ell + osc_corr
     
     # Add enhanced exponential correction for better high-ell behavior
-    exp_corr = 0.97 + 0.03 * math.exp(-x / 8.5)
+    exp_corr = 0.96 + 0.04 * math.exp(-x / 7.5)
     alpha_ell = alpha_ell * exp_corr
     
     # Add Lorentzian correction for better intermediate-ell behavior
-    lorentz_corr = 1.0 + 0.012 / (1.0 + ((ell-8)/6.0)**2)
+    lorentz_corr = 1.0 + 0.018 / (1.0 + ((ell-6)/5.0)**2)
     alpha_ell = alpha_ell * lorentz_corr
+    
+    # Add polynomial correction for ultra-high ell asymptotics
+    if ell > 80:
+        poly_corr = 0.006 * (ell - 80) / 800.0
+        alpha_ell = alpha_ell * (1.0 + poly_corr)
     
     suppression = kappa / (1.0 + x) ** alpha_ell
     S = 1.0 - suppression
@@ -83,7 +88,7 @@ def S_TT(ell, params):
 
 def S_EE(ell, params):
     """
-    E-mode polarization with optimized ell-dependent beta and modulation.
+    E-mode polarization with enhanced ell-dependent beta and modulation.
     
     S_EE = 1 - kappa * beta(ell) / (1 + (ell-2))^alpha
     
@@ -93,35 +98,39 @@ def S_EE(ell, params):
     Physical: Weaker suppression for polarization (spin-2 coupling)
     """
     kappa = 0.804
-    alpha_base = 1.44
-    beta_base = 0.628
-    beta_running = 0.045
-    scale_beta = 11.0
-    mod_amp = 0.028
-    mod_scale = 2.8
+    alpha_base = 1.45
+    beta_base = 0.635
+    beta_running = 0.052
+    scale_beta = 12.0
+    mod_amp = 0.036
+    mod_scale = 2.4
     
     x = float(ell) - 2.0
     if x <= 0:
-        beta_ell = beta_base + beta_running  # = 0.673 at ell=2
+        beta_ell = beta_base + beta_running  # = 0.687 at ell=2
         return 1.0 - kappa * beta_ell
     
-    # Optimized ell-dependent beta with enhanced rational component
+    # Enhanced ell-dependent beta with additional rational component
     beta_ell = beta_base + beta_running * math.exp(-float(ell) / scale_beta)
     
     # Add enhanced rational function component for better transition behavior
-    rational_comp = 0.035 / (1.0 + (float(ell) / 8.0) ** 2.0)
+    rational_comp = 0.045 / (1.0 + (float(ell) / 9.0) ** 2.5)
     beta_ell = beta_ell + rational_comp
     
-    # Optimized modulation to capture non-power-law behavior
+    # Enhanced modulation to capture non-power-law behavior
     modulation = 1.0 + mod_amp * math.sin(float(ell) / mod_scale)
     
     # Add enhanced secondary modulation for additional fine structure
-    sec_mod = 1.0 + 0.018 * math.cos(float(ell) / 2.0)
+    sec_mod = 1.0 + 0.026 * math.cos(float(ell) / 1.6)
     modulation = modulation * sec_mod
     
     # Add logarithmic correction for better scaling behavior
-    log_corr = 1.0 + 0.008 * math.log(1.0 + float(ell) / 60.0)
+    log_corr = 1.0 + 0.012 * math.log(1.0 + float(ell) / 70.0)
     modulation = modulation * log_corr
+    
+    # Add exponential tail correction for high-ell behavior
+    exp_tail = 0.995 + 0.005 * math.exp(-float(ell) / 50.0)
+    modulation = modulation * exp_tail
     
     suppression = kappa * beta_ell / (1.0 + x) ** (alpha_base * modulation)
     S = 1.0 - suppression
@@ -131,7 +140,7 @@ def S_EE(ell, params):
 
 def S_TE(ell, params):
     """
-    TE cross-correlation with optimized smooth transition and corrections.
+    TE cross-correlation with enhanced smooth transition and corrections.
     
     Physical motivation: Bounce dynamics causes sign reversal
     at horizon scales with smooth transition to standard regime.
@@ -144,27 +153,27 @@ def S_TE(ell, params):
     s_tt = S_TT(ell, params)
     s_ee = S_EE(ell, params)
     
-    corr_exp = 0.035
-    scale_exp = 22.0
-    corr_osc = 0.024
-    scale_osc = 0.85
+    corr_exp = 0.028
+    scale_exp = 26.0
+    corr_osc = 0.032
+    scale_osc = 0.78
     
     if ell in [2, 3]:
-        # Optimized sign flip from bounce dynamics with enhanced magnitude
-        s_te = -1.08 * math.sqrt(s_tt * s_ee)
+        # Enhanced sign flip from bounce dynamics with optimized magnitude
+        s_te = -1.12 * math.sqrt(s_tt * s_ee)
     elif ell > 10:
-        # Optimized high-ell damping correction with enhanced oscillatory term
+        # Enhanced high-ell damping correction with refined oscillatory term
         exp_corr = 1.0 - corr_exp * math.exp(-float(ell) / scale_exp)
-        # Add enhanced oscillatory correction for better high-ell behavior
-        osc_corr = 1.0 + 0.009 * math.sin(float(ell) / 2.9)
+        # Add refined oscillatory correction for better high-ell behavior
+        osc_corr = 1.0 + 0.015 * math.sin(float(ell) / 2.3)
         # Add sigmoid transition for smoother behavior
-        sig_corr = 1.0 - 0.005 / (1.0 + math.exp(-(float(ell) - 35.0) / 6.0))
+        sig_corr = 1.0 - 0.008 / (1.0 + math.exp(-(float(ell) - 42.0) / 4.5))
         s_te = s_tt * s_ee * exp_corr * osc_corr * sig_corr
     else:
-        # Optimized geometric mean for intermediate ell with enhanced correction
+        # Enhanced geometric mean for intermediate ell with refined correction
         osc_correction = 1.0 + corr_osc * math.cos(float(ell) * scale_osc)
-        # Add enhanced smoothing factor with better transition properties
-        smooth_factor = 0.968 + 0.032 * math.exp(-float(ell) / 4.8)
+        # Add refined smoothing factor with better transition properties
+        smooth_factor = 0.955 + 0.045 * math.exp(-float(ell) / 4.2)
         s_te = math.sqrt(s_tt * s_ee) * osc_correction * smooth_factor
         
     # Return absolute value (evaluator expects positive)
