@@ -17,19 +17,17 @@ SYS_MSG: |
   YOUR MISSION - IMPROVE THE FIT:
   Evolution should explore SMALL modifications that improve chi^2 WITHOUT adding parameters:
 
-  1. Fine-tune hardcoded values:
-     - kappa in [0.80, 0.81] 
-     - beta in [0.65, 0.70]
-     - alpha in [1.45, 1.55]
+  1. Avoid fine-tuning hardcoded values; instead, explore new mathematical structures for the   functions that do not rely on alpha, kappa, beta as separate parameters.
+ 
+  2. Add ell-dependent corrections using orthogonal basis functions:
+   - S_TT with Fourier series components for high-ell
+   - S_EE with Bessel function modulation
+   - S_TE with wavelet-based phase transitions
 
-  2. Add ell-dependent corrections (still zero params if hardcoded):
-     - S_TT with small high-ell correction
-     - S_EE with modified beta(ell)
-     - S_TE with sign flip at ell=2,3
-
-  3. Try alternative functional forms:
-     - Exponential: S = 1 - kappa*exp(-(ell-2)/scale)
-     - Rational: S = 1 - kappa/(1 + ((ell-2)/scale)^n)
+  3. Try alternative functional forms using orthogonal basis functions:
+   - Bessel functions: S = 1 - kappa * J_0(ell * scale)
+   - Fourier series with multiple harmonics: S = 1 - kappa * sum_{k=1}^3 a_k cos(k * ell + phi_k)
+   - Wavelet-based corrections using Haar wavelets for localized features
 
   HARD CONSTRAINTS:
   1. S_TT(2) must be close to 0.196
@@ -41,6 +39,7 @@ SYS_MSG: |
   - Do NOT add parameters to get_torsion_params() unless chi^2 improves by > 3.74 per param
   - Do NOT use Greek letters or Unicode (ASCII only!)
   - Do NOT change function signatures
+  - Do NOT use Lorentzian, Gaussian, piecewise linear, or rational functions for any corrections; instead, use orthogonal basis functions like Fourier series or Bessel functions
 
   CURRENT METRICS (to beat):
   - combined_score = 0.882
@@ -51,6 +50,7 @@ SYS_MSG: |
 
   # PROMPT-BLOCK-END
 
+ 
 CODEBASE_PATH: "src/"
 INIT_FILE_DATA: {filename: "init_program.py", language: "python"}
 EVAL_FILE_NAME: "evaluate.py"
@@ -62,11 +62,11 @@ MAX_MEM_BYTES: 5000000000
 MEM_CHECK_INTERVAL_S: 0.1
 
 EVOLVE_CONFIG: {fitness_key: "combined_score",
-                num_epochs: 100, ckpt: 10, max_size: null, init_pop: 10,
+                num_epochs: 100, ckpt: 10, max_size: null, init_pop: 20,
                 exploration_rate: 0.30,
                 selection_policy: roulette, selection_kwargs: {roulette_by_rank: True},
                 early_stopping_rounds: 50,
-                num_islands: 5, migration_topology: ring, migration_interval: 15, migration_rate: 0.15,
+                num_islands: 10, migration_topology: ring, migration_interval: 15, migration_rate: 0.20,
                 meta_prompting: True,
                 use_embedding: True, use_map_elites: True,
                 num_inspirations: 4,
