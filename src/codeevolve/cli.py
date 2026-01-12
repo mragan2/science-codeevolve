@@ -133,7 +133,7 @@ def load_or_copy_config(args: Dict[str, Any]) -> Tuple[Dict[Any, Any], Path]:
     if args["load_ckpt"] == 0:
         os.makedirs(out_dir, exist_ok=True)
         cfg_path: Path = args["cfg_path"]
-        cfg_copy_path: Path = out_dir / cfg_path.name
+        cfg_copy_path: Path = out_dir.joinpath(cfg_path.name)
 
         try:
             with open(cfg_path, "r") as f:
@@ -156,7 +156,7 @@ def load_or_copy_config(args: Dict[str, Any]) -> Tuple[Dict[Any, Any], Path]:
             )
             sys.exit(1)
 
-        cfg_copy_path: Path = out_dir / cfg_files[0]
+        cfg_copy_path: Path = out_dir.joinpath(cfg_files[0])
         try:
             with open(cfg_copy_path, "r") as f:
                 config: Dict[Any, Any] = yaml.safe_load(f)
@@ -236,8 +236,8 @@ def setup_isl_args(
 
     for island_id in range(num_islands):
         isl_args: Dict[str, Any] = args.copy()
-        isl_out_dir: Path = args["out_dir"] / f"{island_id}"
-        ckpt_dir: Path = isl_out_dir / "ckpt"
+        isl_out_dir: Path = args["out_dir"].joinpath(f"{island_id}")
+        ckpt_dir: Path = isl_out_dir.joinpath("ckpt")
 
         isl_args["isl_out_dir"] = isl_out_dir
         isl_args["ckpt_dir"] = ckpt_dir
