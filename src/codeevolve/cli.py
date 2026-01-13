@@ -115,9 +115,8 @@ def validate_paths(inpt_dir: Path, cfg_path: Optional[Path], loading_checkpoint:
             print(f"Error: Config file not found: {cfg_path}")
             sys.exit(1)
 
-
-def load_or_copy_config(args: Dict[str, Any]) -> Tuple[Dict[Any, Any], Path]:
-    """Loads configuration file and creates a copy in output directory if starting new run.
+def create_config_copy(args: Dict[str, Any]) -> Tuple[Dict[Any, Any], Path]:
+    """Loads configuration file and creates a copy in output directory.
 
     Args:
         args: Dictionary of command-line arguments.
@@ -128,42 +127,54 @@ def load_or_copy_config(args: Dict[str, Any]) -> Tuple[Dict[Any, Any], Path]:
     Raises:
         SystemExit: If config file operations fail.
     """
+
     out_dir: Path = args["out_dir"]
+    os.makedirs(out_dir, exist_ok=True)
+    cfg_path: Path = args["cfg_path"]
+    cfg_copy_path: Path = out_dir.joinpath(cfg_path.name)
 
-    if args["load_ckpt"] == 0:
-        os.makedirs(out_dir, exist_ok=True)
-        cfg_path: Path = args["cfg_path"]
-        cfg_copy_path: Path = out_dir.joinpath(cfg_path.name)
+    try:
+        with open(cfg_path, "r") as f:
+            config: Dict[Any, Any] = yaml.safe_load(f)
+        with open(cfg_copy_path, "w") as f:
+            yaml.safe_dump(config, f)
+        return config, cfg_copy_path
+    except Exception as err:
+        print(f"Error loading config: {err}")
+        sys.exit(1)
 
-        try:
-            with open(cfg_path, "r") as f:
-                config: Dict[Any, Any] = yaml.safe_load(f)
-            with open(cfg_copy_path, "w") as f:
-                yaml.safe_dump(config, f)
-            return config, cfg_copy_path
-        except Exception as err:
-            print(f"Error loading config: {err}")
-            sys.exit(1)
-    else:
-        cfg_files: List[str] = [f for f in os.listdir(out_dir) if f.endswith(".yaml")]
+def load_config(args: Dict[str, Any]) -> Tuple[Dict[Any, Any], Path]:
+    """Loads configuration file in output directory.
 
-        if len(cfg_files) == 0:
-            print(f"Error: No config file found in {out_dir} while loading checkpoint.")
-            sys.exit(1)
-        elif len(cfg_files) > 1:
-            print(
-                f"Error: Multiple config files found in {out_dir} (expected one), found: {cfg_files}"
-            )
-            sys.exit(1)
+    Args:
+        args: Dictionary of command-line arguments.
 
-        cfg_copy_path: Path = out_dir.joinpath(cfg_files[0])
-        try:
-            with open(cfg_copy_path, "r") as f:
-                config: Dict[Any, Any] = yaml.safe_load(f)
-            return config, cfg_copy_path
-        except Exception as err:
-            print(f"Error loading config: {err}")
-            sys.exit(1)
+    Returns:
+        Tuple of (config dictionary, path to config in output directory).
+
+    Raises:
+        SystemExit: If config file operations fail.
+    """
+    out_dir: Path = args["out_dir"]
+    cfg_files: List[str] = [f for f in os.listdir(out_dir) if f.endswith(".yaml")]
+
+    if len(cfg_files) == 0:
+        print(f"Error: No config file found in {out_dir} while loading checkpoint.")
+        sys.exit(1)
+    elif len(cfg_files) > 1:
+        print(
+            f"Error: Multiple config files found in {out_dir} (expected one), found: {cfg_files}"
+        )
+        sys.exit(1)
+
+    cfg_copy_path: Path = out_dir.joinpath(cfg_files[0])
+    try:
+        with open(cfg_copy_path, "r") as f:
+            config: Dict[Any, Any] = yaml.safe_load(f)
+        return config, cfg_copy_path
+    except Exception as err:
+        print(f"Error loading config: {err}")
+        sys.exit(1)
 
 
 def find_common_checkpoints(ckpt_dirs: List[Path]) -> Set[str]:
@@ -389,7 +400,11 @@ def main() -> int:
 
     config: Dict[Any, Any]
     cfg_copy_path: Path
-    config, cfg_copy_path = load_or_copy_config(args)
+    if args["load_ckpt"] == 0 or not args["out_dir"].exists():
+        config, cfg_copy_path = create_config_copy(args)
+    else:
+        config, cfg_copy_path = load_config(args)
+
     evolve_config: Dict[str, Any] = config["EVOLVE_CONFIG"]
 
     isl2args: Dict[int, Dict[str, Any]] = setup_isl_args(
