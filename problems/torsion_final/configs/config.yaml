@@ -16,17 +16,18 @@ SYS_MSG: |
   YOUR MISSION - IMPROVE THE FIT:
   Evolution should explore SMALL modifications that improve chi^2 WITHOUT adding parameters:
 
-  1. Avoid using alpha, kappa, beta as separate variables; instead, embed their values directly into mathematical expressions or use new structures that don't reference these symbols
-  
-  2. Add ell-dependent corrections using only Fourier series or Bessel functions:
-   - S_TT: Fourier series with multiple harmonics (e.g., sum_{k=1}^3 a_k cos(k * ell + phi_k))
-   - S_EE: Bessel functions of the first kind (e.g., J_0(ell * scale))
-   - S_TE: Trigonometric functions (e.g., sin(ell * phase) or cos(ell * phase)) for smooth phase transitions
+  1. Hardcode all numerical values directly into mathematical expressions. Do not define any variables for numerical constants. For example, use '0.804 * math.cos(ell * 1.0 + 0.5)' instead of 'kappa * math.cos(ell * k + phi)' where 'kappa' is a variable.
 
-  3. Try alternative functional forms using orthogonal basis functions:
-   - Bessel functions: S = 1 - kappa * J_0(ell * scale)
-   - Fourier series with multiple harmonics: S = 1 - kappa * sum_{k=1}^3 a_k cos(k * ell + phi_k)
-   - Wavelet-based corrections using Haar wavelets for localized features
+  2. Construct S_TT, S_EE, and S_TE entirely using only Fourier series (sums of sine and cosine terms with integer harmonics) or Bessel functions of the first kind. Do not include any base model or other mathematical components outside of these allowed functions. Examples:
+   - S_TT: sum_{k=1}^3 a_k cos(k * ell + phi_k) + b * J_0(c * ell)
+   - S_EE: sum_{k=1}^2 d_k sin(k * ell + psi_k) + e * J_1(f * ell)
+   - S_TE: sum_{k=1}^4 g_k cos(k * ell + theta_k) + h * J_2(i * ell)
+  All coefficients (a_k, b, c, etc.) must be hardcoded numerical values.
+
+  3. Explore alternative functional forms using ONLY Fourier series or Bessel functions, ensuring the entire function is built from these components. For example:
+   - S = sum_{k=1}^n a_k cos(k * ell + phi_k) + b * J_m(c * ell)
+   - S = sum_{k=1}^n a_k sin(k * ell + phi_k) + b * J_m(c * ell)
+  All components must be part of the Fourier series or Bessel functions; no additive constants or base models outside these allowed functions.
 
   HARD CONSTRAINTS:
   1. S_TT(2) must be close to 0.196
@@ -38,7 +39,7 @@ SYS_MSG: |
   - Do NOT add parameters to get_torsion_params() unless chi^2 improves by > 3.74 per param
   - Do NOT use Greek letters or Unicode (ASCII only!)
   - Do NOT change function signatures
-  - Do NOT use Lorentzian, Gaussian, piecewise linear, rational functions, or any orthogonal polynomials (e.g., Chebyshev, Legendre, Hermite, Gegenbauer, Jacobi); instead, use only Fourier series or Bessel functions for corrections
+  - Do NOT use any mathematical functions except sin, cos, and Bessel functions of the first kind (J_n). Specifically, forbidden functions include: tanh, exp, gamma, sqrt, log, sinc, Lorentzian, Gaussian, piecewise linear, rational functions, power laws, Airy functions, orthogonal polynomials (Chebyshev, Legendre, Hermite, Gegenbauer, Jacobi), and any other special functions not explicitly allowed. ALL corrections MUST use ONLY Fourier series (sums of sine and cosine terms with integer harmonics) or Bessel functions of the first kind (J_n).
 
   CURRENT METRICS (to beat):
   - combined_score = 0.882
