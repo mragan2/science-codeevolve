@@ -1,0 +1,5 @@
+{
+  "cengen_url": "https://cengen.org/storage/021821_medium_threshold2.csv",
+  "neuropeptide_connectome_url": "https://raw.githubusercontent.com/LidiaRipollSanchez/Neuropeptide-Connectome/main/Adjacency%20matrices%20for%20networks/01022024_neuropeptide_connectome_short_range_model.csv",
+  "connectome": "/home/rag/Projects/science-codeevolve/problems/elegans/input/connectome.xlsx"
+}

@@ -1,0 +1,159 @@
+SYS_MSG: |
+  # PROMPT-BLOCK-START
+  CONTEXT: You are optimizing a connectome-driven C. elegans locomotion simulator.
+
+  GOAL:
+  Evolve the code to maximize fitness by matching C. elegans kinematics and neural
+  dynamics to real datasets (Dryad 2024 locomotion + WormWideWeb whole-brain activity).
+  Fitness (in evaluator): negative weighted loss across curvature, velocity/trajectory,
+  neural activity statistics, and consistency penalties (averaged across seeds).
+
+  NON-NEGOTIABLE REQUIREMENTS (MUST PASS EVALUATION):
+  1) Load the real connectome from Excel (do NOT fabricate matrices).
+     - Recommended (evaluator sets this automatically):
+       CE_CONNECTOME_PATH=/home/rag/Projects/science-codeevolve/problems/elegans/input/connectome.xlsx
+     - Acceptable local fallbacks (if present in the run directory):
+       ./connectome.xlsx
+       ./input/connectome.xlsx
+       ./SI 5 Connectome adjacency matrices, corrected July 2020.xlsx
+       /mnt/data/SI 5 Connectome adjacency matrices, corrected July 2020.xlsx
+
+
+  2) Use these sheet names exactly:
+     - "hermaphrodite chemical" (directed chemical synapses)
+     - "hermaphrodite gap jn symmetric" (symmetric gap junctions)
+
+  3) Parse the SI5 sheet layout correctly (it is NOT a clean matrix at A1):
+     - Column labels are on row 3, starting at column 4 (1-indexed)
+     - Row labels are on column 3, starting at row 4 (1-indexed)
+     - Numeric matrix begins at row 4, column 4 (1-indexed)
+     In pandas (0-indexed, header=None):
+       col_labels = raw.iloc[2, 3:]
+       row_labels = raw.iloc[3:, 2]
+       matrix     = raw.iloc[3:, 3:]
+
+  4) Extract a neuron-neuron submatrix using the intersection of row/column neuron labels.
+     - Chemical is directed: rows = presynaptic, cols = postsynaptic.
+     - Gap junction matrix is symmetric.
+
+  5) Determinism:
+     - All randomness MUST be seeded from environment variable CE_SEED (integer).
+     - Do not use uncontrolled np.random calls.
+
+  6) Output must be EXACTLY one JSON line and nothing else (no prints, no logging).
+     - Required keys:
+       positions (list of [x,y] length T)
+       velocities (list of [vx,vy] length T)
+       curvature (list length T of 10-segment curvature values)
+       neural (list length T of K neural activity channels; K >= 32)
+       dt (float time step)
+       n_neurons (int)
+       chem_sum (float)
+       chem_nnz (int)
+       gap_sum (float)
+       gap_nnz (int)
+       source_xlsx (string filename only)
+     - These connectome stats MUST reflect the real loaded matrices.
+
+  MODELING STRATEGY (WHAT TO OPTIMIZE):
+  - Keep the simulation fast and stable under strict timeouts.
+  - Use vectorized numpy dynamics (rate model / coupled linear-nonlinear update is fine).
+  - Normalize chemical weights by outgoing strength (or similar) to avoid blow-ups.
+  - Use gap junction coupling via a Laplacian-like diffusion term (optional but allowed).
+  - Compute kinematics (positions, velocities, curvature) from connectome-dependent
+    motor readouts (e.g., VB/DB vs VA/DA groups).
+  - Produce neural activity time series that evolve from the connectome dynamics.
+
+  HARD ANTI-CHEATING RULES:
+  - Do NOT hardcode outputs to match targets.
+  - Do NOT output constant connectome stats.
+  - Do NOT bypass file loading.
+  - Do NOT emit fake "biological realism" that is not implemented.
+  - The evaluator may compare your reported connectome stats to expected values derived
+    from the workbook. If you do not truly load and compute these stats, you will fail.
+
+  EDITING RULES (CRITICAL FOR CODEEVOLVE):
+  - Preserve working code.
+  - Only modify code inside # EVOLVE-BLOCK-START / # EVOLVE-BLOCK-END.
+  - Do not change function signatures.
+  - Make small, targeted SEARCH/REPLACE diffs.
+
+  PERFORMANCE CONSTRAINTS:
+  - Must run within the evaluator timeout.
+  - Avoid heavy loops over edges; prefer dense matrix ops.
+  - Avoid unnecessary pandas re-parsing; lightweight caching on disk is allowed
+    ONLY if it remains deterministic and does not break sandbox execution.
+
+  TARGET:
+  - Match Dryad locomotion curvature statistics and WormWideWeb neural/behavior statistics
+    while satisfying all requirements above.
+
+  KEYWORDS:
+  c elegans, connectome, hermaphrodite chemical, gap junction, locomotion, motor neurons, VB DB VA DA, neural dynamics
+  # PROMPT-BLOCK-END
+
+CODEBASE_PATH: "src/"
+INIT_FILE_DATA: {filename: "init_program.py", language: "python"}
+EVAL_FILE_NAME: "evaluate.py"
+EVAL_TIMEOUT: 360
+
+SEED: 42
+
+MAX_MEM_BYTES: 5000000000
+MEM_CHECK_INTERVAL_S: 0.1
+
+EVOLVE_CONFIG:
+  fitness_key: "fitness"
+  num_epochs: 100
+  ckpt: 10
+  max_size: 50
+  init_pop: 12
+
+  exploration_rate: 0.40
+  selection_policy: roulette
+  selection_kwargs: {roulette_by_rank: True}
+  early_stopping_rounds: 50
+
+  num_islands: 2
+  migration_topology: ring
+  migration_interval: 5
+  migration_rate: 0.25
+
+  meta_prompting: True
+  use_embedding: True
+
+  # IMPORTANT: your old MAP_ELITES feature keys (delta_bic, chi2_tt) are torsion-specific and
+  # will not exist in the connectome evaluator JSON. Leaving them enabled will break or
+  # degrade the run. Disable MAP-Elites for this project unless you add valid features.
+  use_map_elites: False
+
+  num_inspirations: 3
+  max_chat_depth: 2
+
+  mp_start_marker: "# PROMPT-BLOCK-START"
+  mp_end_marker: "# PROMPT-BLOCK-END"
+  evolve_start_marker: "# EVOLVE-BLOCK-START"
+  evolve_end_marker: "# EVOLVE-BLOCK-END"
+
+  use_scheduler: True
+  type: PlateauScheduler
+  scheduler_kwargs:
+    min_rate: 0.15
+    max_rate: 0.40
+    plateau_threshold: 5
+    increase_factor: 1.05
+    decrease_factor: 0.95
+
+EXPLORATION_ENSEMBLE:
+  - {model_name: "qwen3-coder:480b-cloud", temp: 0.92, top_p: 0.92, retries: 5, weight: 0.6, verify_ssl: False}
+  - {model_name: "deepseek-v3.2:cloud", temp: 0.90, top_p: 0.92, retries: 5, weight: 0.4, verify_ssl: False}
+
+EXPLOITATION_ENSEMBLE:
+  - {model_name: "glm-4.7:cloud", temp: 0.50, top_p: 0.90, retries: 5, weight: 0.7, verify_ssl: False}
+  - {model_name: "devstral-2:123b-cloud", temp: 0.50, top_p: 0.90, retries: 5, weight: 0.3, verify_ssl: False}
+
+SAMPLER_AUX_LM:
+  {model_name: "glm-4.7:cloud", temp: 0.35, top_p: 0.90, retries: 5, weight: 1, verify_ssl: False}
+
+EMBEDDING:
+  {model_name: "qwen3-embedding:4b", retries: 3, verify_ssl: False}
