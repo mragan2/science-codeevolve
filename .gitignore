@@ -220,3 +220,23 @@ jobs_history.json
 problems/*/FINAL_BEST_SOL.py
 problems/*/WINNER_RUN_OUTPUT.txt
 temp_eval_*.json
+
+# Local experiments, logs, and large datasets
+experiments/
+logs/
+output.json
+check_progress.sh
+
+# Problem data caches / raw datasets / results
+problems/*/input/data/
+problems/*/raw/
+problems/*/results/
+
+# Large data formats
+*.pkl
+*.7z
+*.mat
+*.npz
+*.avi
+*.ods
+*_FILES/
