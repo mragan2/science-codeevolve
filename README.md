@@ -475,39 +475,6 @@ output_directory/
 └── ...
 ```
 
-### Finding Best Solutions
-
-Each problem directory includes a `find_winner.py` script to identify and extract the best solution across all experimental runs:
-
-```bash
-cd problems/<problem_name>
-python find_winner.py
-```
-
-This will evaluate all candidates, rank them by fitness, and copy the winner to `FINAL_BEST_SOL.py` in the problem directory.
-
-## Repository Structure
-
-```
-science-codeevolve/
-├── problems/                # Problem definitions
-│   ├── bounce_cosmology/   # Each problem has:
-│   │   ├── README.md       #   - Documentation
-│   │   ├── find_winner.py  #   - Winner finder script
-│   │   ├── input/          #   - Evaluation scripts
-│   │   └── configs/        #   - Configuration files
-│   ├── gami/
-│   ├── torsion_final/
-│   └── ...
-├── experiments/             # Experimental runs and results
-│   └── <problem>/
-│       └── MR_YYYYMMDD/    # Organized by date
-├── scripts/                 # Template scripts and utilities
-└── src/                     # CodeEvolve source code
-```
-
-For detailed information about specific problems, see the README in each problem directory.
-
 ## Releases
 
 We organize the different versions of CodeEvolve as releases in both this repository and its companion experiments repository. Currently, we have the following releases:

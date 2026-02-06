@@ -14,10 +14,8 @@ authors = [
 ]
 dependencies = [
     "httpx>=0.28.1",
-    "h5py>=3.11.0",
     "numpy>=2.2.5",
     "openai>=1.91.0",
-    "openpyxl>=3.1.2",
     "pandas>=2.2.3",
     "psutil>=5.9.0",
     "PyYAML>=6.0.3",

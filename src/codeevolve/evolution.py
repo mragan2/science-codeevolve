@@ -40,11 +40,11 @@ MAX_LOG_MSG_SZ: int = 256
 
 
 def _run_post_ckpt_cmd(
-    cmd: Union[str, List[str]],
+    cmd: Optional[Union[str, List[str]]],
     cwd: Optional[str],
     logger: logging.Logger,
 ) -> None:
-    if cmd is None:
+    if not cmd:
         return
     cmd_list: List[str]
     if isinstance(cmd, str):
@@ -789,18 +789,11 @@ async def codeevolve_loop(
                 ckpt_dir=args["ckpt_dir"],
                 logger=logger,
             )
-            post_cmd = config.get("POST_CKPT_CMD") or os.environ.get("CODEEVOLVE_POST_CKPT_CMD")
-            post_cwd = config.get("POST_CKPT_CWD") or os.environ.get("CODEEVOLVE_POST_CKPT_CWD")
-            try:
-                post_island = int(config.get("POST_CKPT_ISLAND", 0))
-            except (TypeError, ValueError):
-                post_island = 0
-
-            if post_cmd:
-                logger.info("Waiting for all islands to finish checkpoint save...")
-                global_data.barrier.wait()
-                if isl_data.id == post_island:
-                    _run_post_ckpt_cmd(post_cmd, post_cwd, logger)
+            _run_post_ckpt_cmd(
+                cmd=os.environ.get("CODEEVOLVE_POST_CKPT_CMD"),
+                cwd=os.environ.get("CODEEVOLVE_POST_CKPT_CWD"),
+                logger=logger,
+            )
 
         # EARLY STOPPING
         logger.info("=== GLOBAL EARLY STOPPING CHECK STEP ===")
@@ -856,6 +849,11 @@ async def codeevolve_loop(
         ),
         best_prompt_path=args["isl_out_dir"].joinpath("best_prompt.txt"),
         ckpt_dir=args["ckpt_dir"],
+        logger=logger,
+    )
+    _run_post_ckpt_cmd(
+        cmd=os.environ.get("CODEEVOLVE_POST_CKPT_CMD"),
+        cwd=os.environ.get("CODEEVOLVE_POST_CKPT_CWD"),
         logger=logger,
     )
 
