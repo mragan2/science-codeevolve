@@ -577,6 +577,8 @@ class VizNode:
     generation: int
     fitness: float
     metric: float
+    code: Optional[str] = None
+    eval_metrics: Optional[dict] = None
 
 
 def _find_repo_root(start: Path) -> Path:
@@ -699,6 +701,10 @@ class Dashboard(tk.Tk):
         self._run_start_time: Optional[float] = None
         self._viz_after: Optional[str] = None
         self._viz_last_ckpt: Optional[int] = None
+        self._viz_selected_id: Optional[str] = None
+        self._viz_nodes_cache: dict[str, VizNode] = {}
+        self._viz_positions: dict[str, tuple[float, float]] = {}
+        self._viz_metric_key: str = "combined_score"
 
         self._build_ui()
         self._refresh_runs()
@@ -1422,11 +1428,37 @@ class Dashboard(tk.Tk):
         ttk.Label(ctrl, textvariable=self.viz_epoch_var, style="Dim.TLabel",
                   font=FONT_MONO_SM).grid(row=0, column=4, sticky="w")
 
+        body = ttk.PanedWindow(viz_tab, orient="horizontal")
+        body.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
+
+        canvas_frame = ttk.Frame(body)
+        canvas_frame.columnconfigure(0, weight=1)
+        canvas_frame.rowconfigure(0, weight=1)
+        body.add(canvas_frame, weight=3)
+
         self._viz_canvas = tk.Canvas(
-            viz_tab, bg=C.SURFACE0, highlightthickness=0, borderwidth=0,
+            canvas_frame, bg=C.SURFACE0, highlightthickness=0, borderwidth=0,
         )
-        self._viz_canvas.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        self._viz_canvas.grid(row=0, column=0, sticky="nsew")
         self._viz_canvas.bind("<Configure>", lambda _e: self._refresh_visualizer())
+        self._viz_canvas.bind("<Button-1>", self._on_viz_click)
+
+        detail_frame = ttk.Frame(body, padding=(6, 0, 0, 0))
+        detail_frame.columnconfigure(0, weight=1)
+        detail_frame.rowconfigure(1, weight=1)
+        body.add(detail_frame, weight=1)
+
+        ttk.Label(detail_frame, text="Selection", style="Title.TLabel").grid(
+            row=0, column=0, sticky="w", pady=(4, 6)
+        )
+        self._viz_detail = ScrolledText(
+            detail_frame, height=16, wrap="word",
+            bg=C.MANTLE, fg=C.TEXT, insertbackground=C.TEXT,
+            highlightthickness=0, borderwidth=0, padx=8, pady=6,
+            font=FONT_MONO_SM,
+        )
+        self._viz_detail.grid(row=1, column=0, sticky="nsew")
+        self._viz_detail.configure(state="disabled")
 
         # Kick off auto-refresh loop
         self._toggle_viz_auto()
@@ -1536,6 +1568,8 @@ class Dashboard(tk.Tk):
     def _refresh_visualizer(self) -> None:
         self._viz_canvas.delete("all")
         self.viz_epoch_var.set("")
+        self._viz_nodes_cache = {}
+        self._viz_positions = {}
 
         p = self._selected_problem()
         if not p:
@@ -1556,6 +1590,7 @@ class Dashboard(tk.Tk):
             return
 
         metric_key = self.viz_metric_var.get().strip() or "combined_score"
+        self._viz_metric_key = metric_key
         nodes: dict[str, VizNode] = {}
         for island_idx, ckpt_path in ckpt_map.items():
             ckpt = self._load_ckpt(ckpt_path)
@@ -1593,6 +1628,8 @@ class Dashboard(tk.Tk):
                 prog_id = getattr(prog, "id", None)
                 if not prog_id:
                     continue
+                code = getattr(prog, "code", None)
+                eval_metrics = getattr(prog, "eval_metrics", None)
                 nodes[prog_id] = VizNode(
                     prog_id=str(prog_id),
                     parent_id=str(parent_id) if parent_id else None,
@@ -1600,6 +1637,8 @@ class Dashboard(tk.Tk):
                     generation=generation,
                     fitness=fitness_val,
                     metric=float(metric_val),
+                    code=str(code) if code is not None else None,
+                    eval_metrics=eval_metrics if isinstance(eval_metrics, dict) else None,
                 )
 
         if not nodes:
@@ -1608,6 +1647,10 @@ class Dashboard(tk.Tk):
 
         edges = [(n.parent_id, n.prog_id) for n in nodes.values() if n.parent_id in nodes]
         self._draw_viz_graph(nodes, edges, metric_key)
+        self._viz_nodes_cache = nodes
+
+        if self._viz_selected_id in nodes:
+            self._update_viz_details(self._viz_selected_id)
 
         if latest_epoch is not None:
             self.viz_epoch_var.set(f"Latest ckpt: {latest_epoch}")
@@ -1619,6 +1662,61 @@ class Dashboard(tk.Tk):
         h = self._viz_canvas.winfo_height() or 200
         self._viz_canvas.create_text(w // 2, h // 2, text=text, fill=C.OVERLAY0,
                                      font=FONT_MONO_SM, anchor="center")
+
+    def _on_viz_click(self, event: tk.Event) -> None:
+        if not self._viz_positions:
+            return
+        closest_id = None
+        closest_dist = None
+        for prog_id, (x, y) in self._viz_positions.items():
+            dx = x - event.x
+            dy = y - event.y
+            dist = dx * dx + dy * dy
+            if closest_dist is None or dist < closest_dist:
+                closest_dist = dist
+                closest_id = prog_id
+        if closest_id is None or closest_dist is None:
+            return
+        if closest_dist > 120:  # ~11px radius
+            return
+        self._viz_selected_id = closest_id
+        self._update_viz_details(closest_id)
+        self._refresh_visualizer()
+
+    def _update_viz_details(self, prog_id: str) -> None:
+        node = self._viz_nodes_cache.get(prog_id)
+        if not node:
+            return
+        lines = [
+            f"Program ID: {node.prog_id}",
+            f"Island: {node.island}",
+            f"Generation: {node.generation}",
+            f"Fitness: {node.fitness:.4f}",
+            f"{self._viz_metric_key}: {node.metric:.4f}",
+            "",
+        ]
+        if node.parent_id:
+            lines.append(f"Parent: {node.parent_id}")
+            lines.append("")
+        if node.eval_metrics:
+            try:
+                metrics_text = json.dumps(node.eval_metrics, indent=2, sort_keys=True)
+            except Exception:
+                metrics_text = str(node.eval_metrics)
+            lines.append("Eval metrics:")
+            lines.append(metrics_text)
+            lines.append("")
+        if node.code:
+            code = node.code
+            if len(code) > 4000:
+                code = code[:4000] + "\n# ... truncated ..."
+            lines.append("Code:")
+            lines.append(code)
+
+        self._viz_detail.configure(state="normal")
+        self._viz_detail.delete("1.0", "end")
+        self._viz_detail.insert("1.0", "\n".join(lines))
+        self._viz_detail.configure(state="disabled")
 
     def _draw_viz_graph(self, nodes: dict[str, VizNode],
                         edges: list[tuple[str, str]], metric_key: str) -> None:
@@ -1650,6 +1748,16 @@ class Dashboard(tk.Tk):
             anchor="n",
         )
 
+        # Metric axis ticks
+        for i in range(5):
+            mv = m_min + (m_range / 4) * i
+            x = pad_l + (i / 4) * plot_w
+            self._viz_canvas.create_line(x, pad_t - 2, x, pad_t - 8, fill=C.SURFACE1)
+            self._viz_canvas.create_text(
+                x, pad_t - 10, text=f"{mv:.2f}",
+                fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 7), anchor="s",
+            )
+
         # Precompute positions
         positions: dict[str, tuple[float, float]] = {}
         island_nodes: dict[int, list[VizNode]] = {i: [] for i in islands}
@@ -1672,6 +1780,18 @@ class Dashboard(tk.Tk):
                 8, band_top + 4, text=f"Island {island}",
                 fill=C.SUBTEXT0, font=FONT_MONO_SM, anchor="nw",
             )
+
+            # Generation ticks
+            tick_count = 4
+            for ti in range(tick_count):
+                gv = g_min + (g_range / (tick_count - 1 or 1)) * ti
+                y = band_top + ((gv - g_min) / max(1, g_range)) * (band_bot - band_top)
+                self._viz_canvas.create_line(pad_l - 4, y, pad_l, y, fill=C.SURFACE1)
+                if ti in (0, tick_count - 1):
+                    self._viz_canvas.create_text(
+                        pad_l - 6, y, text=str(int(gv)),
+                        fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 7), anchor="e",
+                    )
 
             for n in group:
                 x = pad_l + ((n.metric - m_min) / m_range) * plot_w
@@ -1703,6 +1823,16 @@ class Dashboard(tk.Tk):
                 pos[0] - r, pos[1] - r, pos[0] + r, pos[1] + r,
                 fill=color, outline=outline, width=1,
             )
+
+        # Selected node ring
+        if self._viz_selected_id and self._viz_selected_id in positions:
+            x, y = positions[self._viz_selected_id]
+            self._viz_canvas.create_oval(
+                x - 9, y - 9, x + 9, y + 9,
+                outline=C.YELLOW, width=2,
+            )
+
+        self._viz_positions = positions
 
     # ------------------------------------------------------------------ Log
     _RE_FITNESS = re.compile(
