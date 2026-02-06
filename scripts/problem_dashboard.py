@@ -62,11 +62,11 @@ class C:
     ROSEWATER = "#f5e0dc"
     FLAMINGO  = "#f2cdcd"
 
-FONT_UI    = ("Ubuntu Sans", 10)
-FONT_UI_B  = ("Ubuntu Sans", 10, "bold")
+FONT_UI    = ("Ubuntu Sans", 11)
+FONT_UI_B  = ("Ubuntu Sans", 11, "bold")
 FONT_MONO  = ("Ubuntu Sans Mono", 10)
 FONT_MONO_SM = ("Ubuntu Sans Mono", 9)
-FONT_TITLE = ("Ubuntu Sans", 12, "bold")
+FONT_TITLE = ("Ubuntu Sans", 13, "bold")
 
 # Known dropdown options for categorical config parameters
 DROPDOWN_OPTIONS: dict[str, list[str]] = {
@@ -481,6 +481,8 @@ def _apply_theme(root: tk.Tk) -> None:
     # Frames
     style.configure("TFrame", background=C.BASE)
     style.configure("Surface.TFrame", background=C.SURFACE0)
+    style.configure("Header.TFrame", background=C.BASE)
+    style.configure("Toolbar.TFrame", background=C.BASE)
 
     # Labels
     style.configure("TLabel", background=C.BASE, foreground=C.TEXT, font=FONT_UI)
@@ -488,17 +490,26 @@ def _apply_theme(root: tk.Tk) -> None:
     style.configure("Title.TLabel", font=FONT_TITLE, foreground=C.LAVENDER)
     style.configure("Ok.TLabel", foreground=C.GREEN)
     style.configure("Err.TLabel", foreground=C.RED)
-    style.configure("Status.TLabel", background=C.MANTLE, foreground=C.SUBTEXT0, font=FONT_MONO_SM)
+    style.configure("Status.TLabel", background=C.MANTLE, foreground=C.SUBTEXT0,
+                    font=FONT_MONO_SM, padding=(6, 2))
+    style.configure("Pill.Ok.TLabel", background=C.SURFACE0, foreground=C.GREEN,
+                    font=FONT_UI_B, padding=(8, 2))
+    style.configure("Pill.Err.TLabel", background=C.SURFACE0, foreground=C.RED,
+                    font=FONT_UI_B, padding=(8, 2))
 
     # LabelFrames
     style.configure("TLabelframe", background=C.BASE, foreground=C.SUBTEXT1,
                     font=FONT_UI_B, borderwidth=1, relief="solid")
     style.configure("TLabelframe.Label", background=C.BASE, foreground=C.SUBTEXT1,
                     font=FONT_UI_B)
+    style.configure("Card.TLabelframe", background=C.SURFACE0, foreground=C.SUBTEXT1,
+                    font=FONT_UI_B, borderwidth=1, relief="solid")
+    style.configure("Card.TLabelframe.Label", background=C.SURFACE0, foreground=C.SUBTEXT1,
+                    font=FONT_UI_B)
 
     # Buttons
     style.configure("TButton", background=C.SURFACE1, foreground=C.TEXT, font=FONT_UI,
-                    padding=(10, 4), borderwidth=0)
+                    padding=(12, 6), borderwidth=0)
     style.map("TButton",
               background=[("active", C.SURFACE2), ("disabled", C.SURFACE0)],
               foreground=[("disabled", C.OVERLAY0)])
@@ -515,12 +526,12 @@ def _apply_theme(root: tk.Tk) -> None:
 
     # Entries
     style.configure("TEntry", fieldbackground=C.SURFACE0, foreground=C.TEXT,
-                    insertcolor=C.TEXT, borderwidth=1, padding=3)
+                    insertcolor=C.TEXT, borderwidth=1, padding=4)
     style.map("TEntry", fieldbackground=[("focus", C.SURFACE1)])
 
     # Comboboxes
     style.configure("TCombobox", fieldbackground=C.SURFACE0, foreground=C.TEXT,
-                    background=C.SURFACE1, arrowcolor=C.SUBTEXT0, borderwidth=1, padding=3)
+                    background=C.SURFACE1, arrowcolor=C.SUBTEXT0, borderwidth=1, padding=4)
     style.map("TCombobox",
               fieldbackground=[("focus", C.SURFACE1), ("readonly", C.SURFACE0)],
               foreground=[("readonly", C.TEXT)])
@@ -541,7 +552,7 @@ def _apply_theme(root: tk.Tk) -> None:
     # Notebook (used for tabs)
     style.configure("TNotebook", background=C.MANTLE, borderwidth=0)
     style.configure("TNotebook.Tab", background=C.SURFACE0, foreground=C.SUBTEXT0,
-                    font=FONT_UI, padding=(14, 6))
+                    font=FONT_UI, padding=(16, 8))
     style.map("TNotebook.Tab",
               background=[("selected", C.BASE), ("active", C.SURFACE1)],
               foreground=[("selected", C.TEXT)])
@@ -721,11 +732,13 @@ class Dashboard(tk.Tk):
     # ------------------------------------------------------------------ UI
     def _build_ui(self) -> None:
         self.columnconfigure(0, weight=1)
-        self.rowconfigure(1, weight=1)
-        self.rowconfigure(2, weight=0)
+        self.rowconfigure(0, weight=0)
+        self.rowconfigure(1, weight=0)
+        self.rowconfigure(2, weight=1)
+        self.rowconfigure(3, weight=0)
 
         # ---- Header bar ----
-        header = ttk.Frame(self, padding=(12, 10, 12, 6))
+        header = ttk.Frame(self, padding=(14, 12, 14, 8), style="Header.TFrame")
         header.grid(row=0, column=0, sticky="ew")
         header.columnconfigure(9, weight=1)
 
@@ -737,12 +750,12 @@ class Dashboard(tk.Tk):
             header, textvariable=self.problem_var,
             values=sorted(self.problems.keys()), state="readonly", width=22,
         )
-        self.problem_combo.grid(row=0, column=2, sticky="w", padx=(4, 2))
+        self.problem_combo.grid(row=0, column=2, sticky="w", padx=(4, 6))
         self.problem_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_problem_change())
-        ttk.Button(header, text="Scan", width=4,
-                   command=self._refresh_problems).grid(row=0, column=3, sticky="w", padx=(0, 2))
-        ttk.Button(header, text="New", width=3,
-                   command=self._new_problem_dialog).grid(row=0, column=4, sticky="w", padx=(0, 10))
+        ttk.Button(header, text="Scan", width=5,
+                   command=self._refresh_problems).grid(row=0, column=3, sticky="w", padx=(0, 4))
+        ttk.Button(header, text="New", width=4,
+                   command=self._new_problem_dialog).grid(row=0, column=4, sticky="w", padx=(0, 12))
 
         ttk.Label(header, text="API_BASE:").grid(row=0, column=5, sticky="w")
         common_api_bases = [
@@ -779,17 +792,17 @@ class Dashboard(tk.Tk):
         self.api_base_combo.grid(row=0, column=6, sticky="w", padx=(4, 14))
 
         ttk.Label(header, text="API_KEY:").grid(row=0, column=7, sticky="w")
-        ttk.Entry(header, textvariable=self.api_key_var, width=22, show="*").grid(
+        ttk.Entry(header, textvariable=self.api_key_var, width=26, show="*").grid(
             row=0, column=8, sticky="w", padx=(4, 14))
 
         self.env_status = ttk.Label(header, text="", style="Dim.TLabel")
         self.env_status.grid(row=0, column=9, sticky="e")
 
-        ttk.Separator(self, orient="horizontal").grid(row=0, column=0, sticky="sew", padx=12)
+        ttk.Separator(self, orient="horizontal").grid(row=1, column=0, sticky="ew", padx=12)
 
         # ---- Main paned area ----
         paned = ttk.PanedWindow(self, orient="horizontal")
-        paned.grid(row=1, column=0, sticky="nsew", padx=8, pady=(4, 0))
+        paned.grid(row=2, column=0, sticky="nsew", padx=10, pady=(6, 0))
 
         # ---- Left sidebar ----
         sidebar = ttk.Frame(paned, width=260)
@@ -799,7 +812,7 @@ class Dashboard(tk.Tk):
         paned.add(sidebar, weight=0)
 
         # Runs list
-        runs_frame = ttk.LabelFrame(sidebar, text="  Runs  ", padding=6)
+        runs_frame = ttk.LabelFrame(sidebar, text="  Runs  ", padding=8, style="Card.TLabelframe")
         runs_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 6))
         runs_frame.rowconfigure(0, weight=1)
         runs_frame.columnconfigure(0, weight=1)
@@ -808,7 +821,8 @@ class Dashboard(tk.Tk):
         self.runs_list = tk.Listbox(
             runs_frame, height=8, width=28, exportselection=False,
             bg=C.SURFACE0, fg=C.TEXT, selectbackground=C.BLUE, selectforeground=C.CRUST,
-            highlightthickness=0, borderwidth=0, font=FONT_MONO,
+            highlightthickness=1, highlightbackground=C.SURFACE1,
+            borderwidth=0, font=FONT_MONO, activestyle="none",
             yscrollcommand=runs_scroll.set,
         )
         runs_scroll.config(command=self.runs_list.yview)
@@ -816,13 +830,13 @@ class Dashboard(tk.Tk):
         runs_scroll.grid(row=0, column=1, sticky="ns")
         self.runs_list.bind("<<ListboxSelect>>", lambda _e: self._on_run_select())
 
-        btn_row = ttk.Frame(runs_frame)
+        btn_row = ttk.Frame(runs_frame, style="Surface.TFrame")
         btn_row.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
         ttk.Button(btn_row, text="Refresh", command=self._refresh_runs).pack(side="left", padx=(0, 4))
         ttk.Button(btn_row, text="Open Folder", command=self._open_experiments).pack(side="left")
 
         # Run Snapshot
-        snapshot_frame = ttk.LabelFrame(sidebar, text="  Run Snapshot  ", padding=6)
+        snapshot_frame = ttk.LabelFrame(sidebar, text="  Run Snapshot  ", padding=8, style="Card.TLabelframe")
         snapshot_frame.grid(row=1, column=0, sticky="nsew")
         snapshot_frame.columnconfigure(0, weight=1)
         snapshot_frame.rowconfigure(0, weight=1)
@@ -837,7 +851,7 @@ class Dashboard(tk.Tk):
         self._snapshot.grid(row=0, column=0, sticky="nsew")
         self._snapshot.configure(state="disabled")
 
-        snap_btns = ttk.Frame(snapshot_frame)
+        snap_btns = ttk.Frame(snapshot_frame, style="Surface.TFrame")
         snap_btns.grid(row=1, column=0, sticky="ew", pady=(4, 0))
         ttk.Button(snap_btns, text="Refresh", command=self._refresh_run_snapshot).pack(
             side="left", padx=(0, 4))
@@ -847,6 +861,10 @@ class Dashboard(tk.Tk):
             side="left", padx=(0, 4))
         ttk.Button(snap_btns, text="Open Best Prompt", command=self._open_best_prompt).pack(
             side="left", padx=(0, 4))
+        snap_btns2 = ttk.Frame(snapshot_frame, style="Surface.TFrame")
+        snap_btns2.grid(row=2, column=0, sticky="ew", pady=(4, 0))
+        ttk.Button(snap_btns2, text="Apply Best", style="Accent.TButton",
+                   command=self._apply_best).pack(side="left")
 
         # Island color palette
         self._island_colors = [
@@ -868,7 +886,7 @@ class Dashboard(tk.Tk):
         paned.add(right, weight=1)
 
         # Controls panel
-        ctl = ttk.Frame(right, padding=(8, 6))
+        ctl = ttk.Frame(right, padding=(10, 8), style="Toolbar.TFrame")
         ctl.grid(row=0, column=0, sticky="ew")
         ctl.columnconfigure(10, weight=1)
 
@@ -922,8 +940,8 @@ class Dashboard(tk.Tk):
 
         # Row 2: action buttons
         r = 2
-        btn_bar = ttk.Frame(ctl)
-        btn_bar.grid(row=r, column=0, columnspan=11, sticky="ew", pady=(10, 4))
+        btn_bar = ttk.Frame(ctl, style="Toolbar.TFrame")
+        btn_bar.grid(row=r, column=0, columnspan=11, sticky="ew", pady=(12, 6))
 
         self.btn_run = ttk.Button(btn_bar, text="Run", style="Accent.TButton", command=self._cmd_run)
         self.btn_run.pack(side="left", padx=(0, 4))
@@ -1001,8 +1019,8 @@ class Dashboard(tk.Tk):
         self._build_models_tab()
 
         # ---- Status bar ----
-        status_bar = ttk.Frame(self, padding=(12, 4))
-        status_bar.grid(row=2, column=0, sticky="ew")
+        status_bar = ttk.Frame(self, padding=(12, 6))
+        status_bar.grid(row=3, column=0, sticky="ew")
         status_bar.configure(style="Surface.TFrame")
         status_bar.columnconfigure(1, weight=1)
 
@@ -1031,6 +1049,27 @@ class Dashboard(tk.Tk):
         self.bind_all("<Control-l>", lambda _e: self._clear_log())
         self.bind_all("<Control-a>", lambda _e: self._cmd_analyze())
 
+    def _bind_mousewheel(self, widget: tk.Widget, target: tk.Widget) -> None:
+        def _on_mousewheel(event: tk.Event) -> str:
+            delta = 0
+            if getattr(event, "num", None) == 4:
+                delta = -1
+            elif getattr(event, "num", None) == 5:
+                delta = 1
+            else:
+                if event.delta > 0:
+                    delta = -1
+                elif event.delta < 0:
+                    delta = 1
+                else:
+                    return "break"
+            target.yview_scroll(delta, "units")
+            return "break"
+
+        widget.bind("<MouseWheel>", _on_mousewheel)
+        widget.bind("<Button-4>", _on_mousewheel)
+        widget.bind("<Button-5>", _on_mousewheel)
+
     # ------------------------------------------------------------------ State
     def _selected_problem(self) -> Optional[Problem]:
         name = self.problem_var.get().strip()
@@ -1040,7 +1079,7 @@ class Dashboard(tk.Tk):
         ok = bool(self.api_base_var.get().strip()) and bool(self.api_key_var.get().strip())
         self.env_status.configure(
             text=("API OK" if ok else "Missing API_BASE / API_KEY"),
-            style=("Ok.TLabel" if ok else "Err.TLabel"),
+            style=("Pill.Ok.TLabel" if ok else "Pill.Err.TLabel"),
         )
 
     def _sync_capabilities(self) -> None:
@@ -1126,9 +1165,8 @@ class Dashboard(tk.Tk):
         body_sb.pack(side="right", fill="y")
         body_canvas.pack(fill="both", expand=True, padx=12, pady=(0, 4))
         # Mousewheel
-        for seq in ("<Button-4>", "<Button-5>"):
-            body_canvas.bind(seq, lambda e: body_canvas.yview_scroll(
-                -1 if e.num == 4 else 1, "units"))
+        self._bind_mousewheel(body_canvas, body_canvas)
+        self._bind_mousewheel(body_frame, body_canvas)
 
         def _make_editor(parent, label, template, height=10):
             lf = ttk.LabelFrame(parent, text=f"  {label}  ", padding=6)
@@ -1445,6 +1483,73 @@ class Dashboard(tk.Tk):
         else:
             messagebox.showinfo("Best Prompt", "No best_prompt.txt found for this run yet.")
 
+    def _apply_best(self) -> None:
+        p = self._selected_problem()
+        if not p:
+            return
+        run_id = self.run_id_var.get().strip()
+        if not run_id:
+            messagebox.showerror("Missing Run", "Set a run name before applying best artifacts.")
+            return
+
+        best_sol = self._find_best_artifact("best_sol.py")
+        best_prompt = self._find_best_artifact("best_prompt.txt")
+        missing = []
+        if not best_sol:
+            missing.append("best_sol.py")
+        if not best_prompt:
+            missing.append("best_prompt.txt")
+        if missing:
+            messagebox.showinfo(
+                "Apply Best",
+                "Missing artifacts for this run:\n- " + "\n- ".join(missing),
+            )
+            return
+
+        init_path = p.prob_dir / "input" / "src" / "init_program.py"
+        if not init_path.exists():
+            messagebox.showerror("Apply Best", f"init_program.py not found:\n{init_path}")
+            return
+
+        cfg_path = self._selected_cfg_path()
+        if not cfg_path or not cfg_path.exists():
+            messagebox.showerror("Apply Best", "Select a config to update SYS_MSG.")
+            return
+        if yaml is None:
+            messagebox.showerror("Apply Best", "PyYAML is required to update SYS_MSG.")
+            return
+
+        if not messagebox.askokcancel(
+            "Apply Best",
+            "This will overwrite:\n"
+            f"- {init_path}\n"
+            f"- SYS_MSG in {cfg_path.name}\n\n"
+            "Continue?",
+        ):
+            return
+
+        try:
+            init_path.write_text(best_sol.read_text(encoding="utf-8"), encoding="utf-8")
+        except Exception as e:
+            messagebox.showerror("Apply Best", f"Failed to update init_program.py:\n{e}")
+            return
+
+        try:
+            cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            prompt_txt = best_prompt.read_text(encoding="utf-8")
+            if not prompt_txt.endswith("\n"):
+                prompt_txt += "\n"
+            cfg["SYS_MSG"] = prompt_txt
+            self._dump_config(cfg, cfg_path)
+        except Exception as e:
+            messagebox.showerror("Apply Best", f"Failed to update SYS_MSG:\n{e}")
+            return
+
+        self._refresh_config_editor()
+        self._refresh_models_from_config()
+        self._set_status("Applied best solution + prompt")
+        messagebox.showinfo("Apply Best", "Updated init_program.py and SYS_MSG.")
+
     def _find_best_artifact(self, filename: str) -> Optional[Path]:
         p = self._selected_problem()
         if not p:
@@ -1573,7 +1678,7 @@ class Dashboard(tk.Tk):
         viz_tab.columnconfigure(0, weight=1)
         viz_tab.rowconfigure(1, weight=1)
 
-        ctrl = ttk.Frame(viz_tab, padding=(8, 6))
+        ctrl = ttk.Frame(viz_tab, padding=(10, 8), style="Toolbar.TFrame")
         ctrl.grid(row=0, column=0, sticky="ew")
         ctrl.columnconfigure(6, weight=1)
 
@@ -1612,7 +1717,7 @@ class Dashboard(tk.Tk):
                   font=FONT_MONO_SM).grid(row=0, column=4, sticky="w")
 
         body = ttk.PanedWindow(viz_tab, orient="horizontal")
-        body.grid(row=1, column=0, sticky="nsew", padx=8, pady=(0, 8))
+        body.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
 
         canvas_frame = ttk.Frame(body)
         canvas_frame.columnconfigure(0, weight=1)
@@ -1626,7 +1731,7 @@ class Dashboard(tk.Tk):
         self._viz_canvas.bind("<Configure>", lambda _e: self._refresh_visualizer())
         self._viz_canvas.bind("<Button-1>", self._on_viz_click)
 
-        detail_frame = ttk.Frame(body, padding=(6, 0, 0, 0))
+        detail_frame = ttk.Frame(body, padding=(10, 0, 0, 0))
         detail_frame.columnconfigure(0, weight=1)
         detail_frame.rowconfigure(1, weight=1)
         body.add(detail_frame, weight=1)
@@ -1638,7 +1743,7 @@ class Dashboard(tk.Tk):
             detail_frame, height=16, wrap="word",
             bg=C.MANTLE, fg=C.TEXT, insertbackground=C.TEXT,
             highlightthickness=0, borderwidth=0, padx=8, pady=6,
-            font=FONT_MONO_SM,
+            font=FONT_MONO,
         )
         self._viz_detail.grid(row=1, column=0, sticky="nsew")
         self._viz_detail.configure(state="disabled")
@@ -1907,13 +2012,13 @@ class Dashboard(tk.Tk):
         cw = max(400, self._viz_canvas.winfo_width() or 600)
         ch = max(240, self._viz_canvas.winfo_height() or 360)
 
-        pad_l, pad_r, pad_t, pad_b = 48, 18, 26, 18
+        pad_l, pad_r, pad_t, pad_b = 56, 20, 30, 20
         islands = sorted({n.island for n in nodes.values()})
         if not islands:
             self._viz_label("No islands found")
             return
 
-        gap = 14
+        gap = 16
         band_h = (ch - pad_t - pad_b - gap * (len(islands) - 1)) / max(1, len(islands))
         plot_w = cw - pad_l - pad_r
 
@@ -1935,10 +2040,10 @@ class Dashboard(tk.Tk):
         for i in range(5):
             mv = m_min + (m_range / 4) * i
             x = pad_l + (i / 4) * plot_w
-            self._viz_canvas.create_line(x, pad_t - 2, x, pad_t - 8, fill=C.SURFACE1)
+            self._viz_canvas.create_line(x, pad_t - 2, x, pad_t - 8, fill=C.SURFACE2)
             self._viz_canvas.create_text(
                 x, pad_t - 10, text=f"{mv:.2f}",
-                fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 7), anchor="s",
+                fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 8), anchor="s",
             )
 
         # Precompute positions
@@ -1957,8 +2062,12 @@ class Dashboard(tk.Tk):
             g_max = max(n.generation for n in group)
             g_range = max(1, g_max - g_min)
 
-            # Band separator + label
-            self._viz_canvas.create_line(pad_l, band_top, cw - pad_r, band_top, fill=C.SURFACE1)
+            # Band background + label
+            band_fill = C.MANTLE if idx % 2 else C.SURFACE0
+            self._viz_canvas.create_rectangle(
+                pad_l, band_top, cw - pad_r, band_bot, fill=band_fill, outline=""
+            )
+            self._viz_canvas.create_line(pad_l, band_top, cw - pad_r, band_top, fill=C.SURFACE2)
             self._viz_canvas.create_text(
                 8, band_top + 4, text=f"Island {island}",
                 fill=C.SUBTEXT0, font=FONT_MONO_SM, anchor="nw",
@@ -1969,11 +2078,11 @@ class Dashboard(tk.Tk):
             for ti in range(tick_count):
                 gv = g_min + (g_range / (tick_count - 1 or 1)) * ti
                 y = band_top + ((gv - g_min) / max(1, g_range)) * (band_bot - band_top)
-                self._viz_canvas.create_line(pad_l - 4, y, pad_l, y, fill=C.SURFACE1)
+                self._viz_canvas.create_line(pad_l - 4, y, pad_l, y, fill=C.SURFACE2)
                 if ti in (0, tick_count - 1):
                     self._viz_canvas.create_text(
                         pad_l - 6, y, text=str(int(gv)),
-                        fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 7), anchor="e",
+                        fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 8), anchor="e",
                     )
 
             for n in group:
@@ -1987,7 +2096,7 @@ class Dashboard(tk.Tk):
             c = positions.get(child_id)
             if not p or not c:
                 continue
-            self._viz_canvas.create_line(p[0], p[1], c[0], c[1], fill=C.SURFACE1, width=1)
+            self._viz_canvas.create_line(p[0], p[1], c[0], c[1], fill=C.SURFACE2, width=1)
 
         # Draw nodes
         best_by_island: dict[int, float] = {}
@@ -1999,7 +2108,7 @@ class Dashboard(tk.Tk):
             if not pos:
                 continue
             norm = (n.metric - m_min) / m_range if m_range > 0 else 0.5
-            r = 3 + int(4 * max(0.0, min(1.0, norm)))
+            r = 4 + int(5 * max(0.0, min(1.0, norm)))
             color = self._island_colors[n.island % len(self._island_colors)]
             outline = C.TEXT if abs(n.metric - best_by_island.get(n.island, n.metric)) < 1e-9 else ""
             self._viz_canvas.create_oval(
@@ -2011,7 +2120,7 @@ class Dashboard(tk.Tk):
         if self._viz_selected_id and self._viz_selected_id in positions:
             x, y = positions[self._viz_selected_id]
             self._viz_canvas.create_oval(
-                x - 9, y - 9, x + 9, y + 9,
+                x - 11, y - 11, x + 11, y + 11,
                 outline=C.YELLOW, width=2,
             )
 
@@ -2182,7 +2291,7 @@ class Dashboard(tk.Tk):
         self._cfg_tab.rowconfigure(1, weight=1)
 
         # Toolbar
-        toolbar = ttk.Frame(self._cfg_tab, padding=(8, 6))
+        toolbar = ttk.Frame(self._cfg_tab, padding=(10, 8), style="Toolbar.TFrame")
         toolbar.grid(row=0, column=0, sticky="ew")
         ttk.Button(toolbar, text="Save to Disk", style="Accent.TButton",
                    command=self._save_config_from_editor).pack(side="left", padx=(0, 6))
@@ -2219,12 +2328,9 @@ class Dashboard(tk.Tk):
         self._cfg_canvas.grid(row=0, column=0, sticky="nsew")
         cfg_sb.grid(row=0, column=1, sticky="ns")
 
-        # Mouse wheel scrolling (Linux: Button-4/5)
-        def _on_mousewheel(event):
-            self._cfg_canvas.yview_scroll(-1 if event.num == 4 else 1, "units")
-        for w in (self._cfg_canvas, self._cfg_scroll_frame):
-            w.bind("<Button-4>", _on_mousewheel)
-            w.bind("<Button-5>", _on_mousewheel)
+        # Mouse wheel scrolling
+        self._bind_mousewheel(self._cfg_canvas, self._cfg_canvas)
+        self._bind_mousewheel(self._cfg_scroll_frame, self._cfg_canvas)
 
         # Widget storage: (key_path, widget, value_type)
         self._cfg_widgets: list[tuple[list, tk.Widget, type]] = []
@@ -2410,7 +2516,7 @@ class Dashboard(tk.Tk):
         self._models_tab.rowconfigure(1, weight=1)
 
         # Toolbar
-        toolbar = ttk.Frame(self._models_tab, padding=(8, 6))
+        toolbar = ttk.Frame(self._models_tab, padding=(10, 8), style="Toolbar.TFrame")
         toolbar.grid(row=0, column=0, sticky="ew")
         ttk.Button(toolbar, text="Save to Disk", style="Accent.TButton",
                    command=self._save_models_tab).pack(side="left", padx=(0, 6))
@@ -2444,12 +2550,9 @@ class Dashboard(tk.Tk):
         self._mtab_canvas.grid(row=0, column=0, sticky="nsew")
         mtab_sb.grid(row=0, column=1, sticky="ns")
 
-        # Mouse wheel scrolling (Linux: Button-4/5)
-        def _on_mousewheel(event):
-            self._mtab_canvas.yview_scroll(-1 if event.num == 4 else 1, "units")
-        for w in (self._mtab_canvas, self._mtab_scroll_frame):
-            w.bind("<Button-4>", _on_mousewheel)
-            w.bind("<Button-5>", _on_mousewheel)
+        # Mouse wheel scrolling
+        self._bind_mousewheel(self._mtab_canvas, self._mtab_canvas)
+        self._bind_mousewheel(self._mtab_scroll_frame, self._mtab_canvas)
 
         # Widget storage: section_key -> list of slot dicts (field_name -> widget)
         self._mtab_slots: dict[str, list[dict[str, tk.Widget]]] = {}
@@ -2775,6 +2878,8 @@ class Dashboard(tk.Tk):
         canvas.configure(yscrollcommand=scrollbar.set)
         canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+        self._bind_mousewheel(canvas, canvas)
+        self._bind_mousewheel(scroll_frame, canvas)
 
         widgets: list[tuple[dict, str, tk.Widget, object]] = []
 
