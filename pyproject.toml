@@ -32,10 +32,6 @@ dev = [
     "boto3>=1.38.44"
 ]
 
-job-runner = [
-  "boto3>=1.42"
-]
-
 benchmarks = [
     "sympy>=1.13.3",
     "jax>=0.7.2",
