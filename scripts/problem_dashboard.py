@@ -794,8 +794,8 @@ class Dashboard(tk.Tk):
         # ---- Left sidebar ----
         sidebar = ttk.Frame(paned, width=260)
         sidebar.columnconfigure(0, weight=1)
-        sidebar.rowconfigure(0, weight=3)
-        sidebar.rowconfigure(1, weight=2)
+        sidebar.rowconfigure(0, weight=1)
+        sidebar.rowconfigure(1, weight=1)
         paned.add(sidebar, weight=0)
 
         # Runs list
@@ -806,7 +806,7 @@ class Dashboard(tk.Tk):
 
         runs_scroll = ttk.Scrollbar(runs_frame, orient="vertical")
         self.runs_list = tk.Listbox(
-            runs_frame, height=12, width=28, exportselection=False,
+            runs_frame, height=8, width=28, exportselection=False,
             bg=C.SURFACE0, fg=C.TEXT, selectbackground=C.BLUE, selectforeground=C.CRUST,
             highlightthickness=0, borderwidth=0, font=FONT_MONO,
             yscrollcommand=runs_scroll.set,
@@ -821,26 +821,31 @@ class Dashboard(tk.Tk):
         ttk.Button(btn_row, text="Refresh", command=self._refresh_runs).pack(side="left", padx=(0, 4))
         ttk.Button(btn_row, text="Open Folder", command=self._open_experiments).pack(side="left")
 
-        # Island Evolution Chart
-        fitness_frame = ttk.LabelFrame(sidebar, text="  Island Evolution  ", padding=6)
-        fitness_frame.grid(row=1, column=0, sticky="nsew")
-        fitness_frame.columnconfigure(0, weight=1)
-        fitness_frame.rowconfigure(0, weight=1)
-        fitness_frame.rowconfigure(1, weight=0)
+        # Run Snapshot
+        snapshot_frame = ttk.LabelFrame(sidebar, text="  Run Snapshot  ", padding=6)
+        snapshot_frame.grid(row=1, column=0, sticky="nsew")
+        snapshot_frame.columnconfigure(0, weight=1)
+        snapshot_frame.rowconfigure(0, weight=1)
+        snapshot_frame.rowconfigure(1, weight=0)
 
-        self._chart = tk.Canvas(
-            fitness_frame, bg=C.SURFACE0, highlightthickness=0, borderwidth=0,
+        self._snapshot = ScrolledText(
+            snapshot_frame, height=10, wrap="word",
+            bg=C.SURFACE0, fg=C.TEXT, insertbackground=C.TEXT,
+            highlightthickness=0, borderwidth=0, padx=8, pady=6,
+            font=FONT_MONO_SM,
         )
-        self._chart.grid(row=0, column=0, sticky="nsew")
+        self._snapshot.grid(row=0, column=0, sticky="nsew")
+        self._snapshot.configure(state="disabled")
 
-        # Summary label below chart
-        self._chart_summary = ttk.Label(fitness_frame, text="", style="Dim.TLabel",
-                                        font=FONT_MONO_SM, wraplength=240)
-        self._chart_summary.grid(row=1, column=0, sticky="w", pady=(4, 0))
-
-        fbtn_row = ttk.Frame(fitness_frame)
-        fbtn_row.grid(row=2, column=0, sticky="ew", pady=(4, 0))
-        ttk.Button(fbtn_row, text="Refresh", command=self._refresh_island_fitness).pack(
+        snap_btns = ttk.Frame(snapshot_frame)
+        snap_btns.grid(row=1, column=0, sticky="ew", pady=(4, 0))
+        ttk.Button(snap_btns, text="Refresh", command=self._refresh_run_snapshot).pack(
+            side="left", padx=(0, 4))
+        ttk.Button(snap_btns, text="Open Run", command=self._open_run_dir).pack(
+            side="left", padx=(0, 4))
+        ttk.Button(snap_btns, text="Open Best Sol", command=self._open_best_sol).pack(
+            side="left", padx=(0, 4))
+        ttk.Button(snap_btns, text="Open Best Prompt", command=self._open_best_prompt).pack(
             side="left", padx=(0, 4))
 
         # Island color palette
@@ -1215,9 +1220,9 @@ class Dashboard(tk.Tk):
         r"fitness=([\d.]+).*?iteration_found=(\d+)")
 
     def _refresh_island_fitness(self) -> None:
-        """Parse island logs and draw the evolution chart."""
-        self._chart.delete("all")
-        self._chart_summary.configure(text="")
+        """Deprecated chart hook; keep for compatibility."""
+        self._refresh_run_snapshot()
+        return
 
         p = self._selected_problem()
         if not p:
@@ -1380,6 +1385,155 @@ class Dashboard(tk.Tk):
             self._chart.create_text(lx - 18, ly + 3, text=str(island_idx), fill=C.SUBTEXT0,
                                     font=("Ubuntu Sans Mono", 7), anchor="e")
             ly += 10
+
+    # ------------------------------------------------------------------ Run Snapshot
+    def _set_snapshot_text(self, text: str) -> None:
+        self._snapshot.configure(state="normal")
+        self._snapshot.delete("1.0", "end")
+        self._snapshot.insert("1.0", text)
+        self._snapshot.configure(state="disabled")
+
+    def _open_run_dir(self) -> None:
+        p = self._selected_problem()
+        if not p:
+            return
+        run_id = self.run_id_var.get().strip()
+        if not run_id:
+            return
+        _open_path(self.experiments_dir / p.name / run_id)
+
+    def _open_best_sol(self) -> None:
+        path = self._find_best_artifact("best_sol.py")
+        if path:
+            _open_path(path)
+        else:
+            messagebox.showinfo("Best Solution", "No best_sol.py found for this run yet.")
+
+    def _open_best_prompt(self) -> None:
+        path = self._find_best_artifact("best_prompt.txt")
+        if path:
+            _open_path(path)
+        else:
+            messagebox.showinfo("Best Prompt", "No best_prompt.txt found for this run yet.")
+
+    def _find_best_artifact(self, filename: str) -> Optional[Path]:
+        p = self._selected_problem()
+        if not p:
+            return None
+        run_id = self.run_id_var.get().strip()
+        if not run_id:
+            return None
+        run_dir = self.experiments_dir / p.name / run_id
+        direct = run_dir / filename
+        if direct.exists():
+            return direct
+
+        best_fit = None
+        best_path = None
+        for island_dir in run_dir.iterdir() if run_dir.exists() else []:
+            if not island_dir.is_dir() or not island_dir.name.isdigit():
+                continue
+            log_path = island_dir / "results.log"
+            if not log_path.exists():
+                continue
+            try:
+                local_best = None
+                with log_path.open("r", encoding="utf-8", errors="replace") as f:
+                    for line in f:
+                        m = self._RE_CHILD_SOL.search(line)
+                        if m:
+                            fit = float(m.group(1))
+                            if local_best is None or fit > local_best:
+                                local_best = fit
+                if local_best is None:
+                    continue
+                if best_fit is None or local_best > best_fit:
+                    candidate = island_dir / filename
+                    if candidate.exists():
+                        best_fit = local_best
+                        best_path = candidate
+            except Exception:
+                continue
+        return best_path
+
+    def _refresh_run_snapshot(self) -> None:
+        p = self._selected_problem()
+        run_id = self.run_id_var.get().strip()
+        if not p or not run_id:
+            self._set_snapshot_text("Select a run to see summary.")
+            return
+
+        run_dir = self.experiments_dir / p.name / run_id
+        if not run_dir.exists():
+            self._set_snapshot_text(f"Run not found: {run_id}")
+            return
+
+        islands = sorted([d for d in run_dir.iterdir() if d.is_dir() and d.name.isdigit()],
+                         key=lambda d: int(d.name))
+        if not islands:
+            self._set_snapshot_text("No islands found yet.")
+            return
+
+        summaries = []
+        global_best = None
+        global_best_island = None
+        latest_epoch = 0
+        last_mtime = None
+
+        for island_dir in islands:
+            idx = int(island_dir.name)
+            log_path = island_dir / "results.log"
+            local_best = None
+            local_epoch = 0
+            if log_path.exists():
+                try:
+                    with log_path.open("r", encoding="utf-8", errors="replace") as f:
+                        for line in f:
+                            m = self._RE_CHILD_SOL.search(line)
+                            if m:
+                                fit = float(m.group(1))
+                                step = int(m.group(2))
+                                if local_best is None or fit > local_best:
+                                    local_best = fit
+                                if step > local_epoch:
+                                    local_epoch = step
+                    mtime = log_path.stat().st_mtime
+                    last_mtime = mtime if last_mtime is None or mtime > last_mtime else last_mtime
+                except Exception:
+                    pass
+
+            if local_best is not None:
+                summaries.append(f"I{idx}:{local_best:.3f}")
+                if global_best is None or local_best > global_best:
+                    global_best = local_best
+                    global_best_island = idx
+            latest_epoch = max(latest_epoch, local_epoch)
+
+        from datetime import datetime
+        updated_str = "unknown"
+        if last_mtime is not None:
+            updated_str = datetime.fromtimestamp(last_mtime).strftime("%Y-%m-%d %H:%M:%S")
+
+        lines = [
+            f"Run: {run_id}",
+            f"Islands: {len(islands)}",
+            f"Latest epoch: {latest_epoch}",
+            f"Last update: {updated_str}",
+        ]
+        if global_best is not None:
+            lines.append(f"Global best: {global_best:.4f} (I{global_best_island})")
+        if summaries:
+            lines.append("")
+            lines.append("Per island:")
+            lines.append("  " + "  ".join(summaries))
+
+        best_sol = (run_dir / "best_sol.py").exists()
+        best_prompt = (run_dir / "best_prompt.txt").exists()
+        lines.append("")
+        lines.append(f"best_sol.py: {'yes' if best_sol else 'no'}")
+        lines.append(f"best_prompt.txt: {'yes' if best_prompt else 'no'}")
+
+        self._set_snapshot_text("\n".join(lines))
 
     # ------------------------------------------------------------------ Visualizer
     _RE_CKPT = re.compile(r"ckpt_(\d+)\.pkl$")
@@ -1926,6 +2080,7 @@ class Dashboard(tk.Tk):
         self._refresh_models_tab()
         self._viz_last_ckpt = None
         self._refresh_visualizer()
+        self._refresh_run_snapshot()
 
     def _on_run_select(self) -> None:
         sel = self.runs_list.curselection()
@@ -1935,7 +2090,7 @@ class Dashboard(tk.Tk):
         # Strip fitness annotation: "run3  (0.9540)" -> "run3"
         run_name = raw.split("(")[0].strip() if "(" in raw else raw.strip()
         self.run_id_var.set(run_name)
-        self._refresh_island_fitness()
+        self._refresh_run_snapshot()
         self._viz_last_ckpt = None
         self._refresh_visualizer()
 
