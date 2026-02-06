@@ -6,20 +6,22 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 #
-# This file implements a the program and program database classes of CodeEvolve.
+# This file implements the program and program database classes of CodeEvolve.
 #
 # ===--------------------------------------------------------------------------------------===#
 
 from typing import Dict, List, Optional, Callable, Tuple
+from abc import ABC, abstractmethod
 
 from dataclasses import dataclass, field
-from abc import ABC, abstractmethod
 import random
 import math
-
 import numpy as np
 
-from codeevolve.utils.cvt_utils import cvt, closest_centroid_idx
+
+# ---------------------------------------------------------------------------
+# Program
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -52,6 +54,7 @@ class Program:
         (see sampler.py and template.py).
         features: A dictionary of feature names to values, used for MAP-Elites.
         embedding: Word embedding of program code.
+        depth: Depth of the program in the program tree.
     """
 
     id: str
@@ -81,6 +84,8 @@ class Program:
 
     embedding: Optional[List[float]] = None
 
+    depth: int = 0
+
     def __repr__(self) -> str:
         """Returns a string representation of the Program instance.
 
@@ -94,11 +99,17 @@ class Program:
             f"id={self.id},"
             f"fitness={self.fitness:.8f},"
             f"island_found={self.island_found},"
+            f"depth={self.depth},"
             f"iteration_found={self.iteration_found},"
             f"returncode={self.returncode},"
             f"eval_metrics={self.eval_metrics}"
             ")"
         )
+
+
+# ---------------------------------------------------------------------------
+# MAP-Elites Feature
+# ---------------------------------------------------------------------------
 
 
 @dataclass
@@ -141,6 +152,12 @@ class EliteMap(ABC):
             A list of string identifiers for all elite programs.
         """
         pass
+
+
+# ---------------------------------------------------------------------------
+# Standard MAP-Elites
+# See https://arxiv.org/abs/1504.04909
+# ---------------------------------------------------------------------------
 
 
 class GridEliteMap(EliteMap):
@@ -215,6 +232,83 @@ class GridEliteMap(EliteMap):
         return [pid for pid, _ in self.map.values()]
 
 
+# ---------------------------------------------------------------------------
+# Central Voronoi Tesselations MAP-Elites
+# See https://arxiv.org/abs/1610.05729
+# ---------------------------------------------------------------------------
+
+
+def closest_centroid_idx(point: np.ndarray, centroids: np.ndarray) -> int:
+    """Finds the index of the closest centroid to a given point.
+    This function calculates the squared Euclidean distance from the point to each
+    centroid and returns the index of the centroid with the minimum distance.
+    Args:
+        point: A 1D NumPy array representing the coordinates of the point.
+        centroids: A 2D NumPy array where each row is a centroid.
+    Returns:
+        The integer index of the closest centroid in the `centroids` array.
+    """
+    dist_to_centroids: np.ndarray = np.sum((centroids - point) ** 2, axis=1)
+    return np.argmin(dist_to_centroids).item()
+
+
+def cvt(
+    num_centroids: int,
+    num_samples: int,
+    feature_bounds: List[Tuple[float, float]],
+    max_iter: int = 300,
+    tolerance: float = 1e-4,
+) -> np.ndarray:
+    """Generates centroids for MAP-Elites using Centroidal Voronoi Tesselation (CVT).
+    This function implements Lloyd's algorithm to partition the feature space.
+    It works by iteratively sampling points, assigning them to the nearest
+    centroid, and updating the centroid to be the mean of its assigned points.
+    Args:
+        num_centroids: The number of centroids (k) to generate.
+        num_samples: The number of random points to sample for partitioning the space.
+        feature_bounds: A list of tuples, where each tuple contains the
+                        (min_val, max_val) for a feature dimension.
+        max_iter: The maximum number of iterations for the algorithm to run.
+        tolerance: The convergence threshold. The algorithm stops if the maximum
+                   centroid shift between iterations is less than this value.
+    Returns:
+        A 2D NumPy array of shape (num_centroids, num_features) representing the
+        final positions of the centroids.
+    """
+    num_features = len(feature_bounds)
+    samples: np.ndarray = np.array(
+        [
+            [
+                np.random.uniform(feature_bounds[i][0], feature_bounds[i][1])
+                for i in range(num_features)
+            ]
+            for j in range(num_centroids + num_samples)
+        ],
+        dtype=np.float64,
+    )
+
+    centroids: np.ndarray = samples[:num_centroids, :].copy()
+    points: np.ndarray = samples[num_centroids : num_centroids + num_samples, :]
+
+    for iteration in range(max_iter):
+        prev_centroids: np.ndarray = centroids.copy()
+
+        centroid2points = [[] for _ in range(num_centroids)]
+        for i in range(num_samples):
+            centroid_idx: int = closest_centroid_idx(points[i, :], centroids)
+            centroid2points[centroid_idx].append(i)
+
+        for j in range(num_centroids):
+            if centroid2points[j]:
+                centroids[j] = np.mean(points[centroid2points[j], :], axis=0)
+
+        centroid_shift: float = np.max(np.linalg.norm(centroids - prev_centroids, axis=1))
+        if centroid_shift < tolerance:
+            return centroids
+
+    return centroids
+
+
 class CVTEliteMap(EliteMap):
     """Implements MAP-Elites using Centroidal Voronoi Tesselations (CVT).
     Instead of a fixed grid, this approach partitions the feature space into
@@ -277,6 +371,11 @@ class CVTEliteMap(EliteMap):
             A list of string identifiers for all stored elite programs.
         """
         return [pid for pid, _ in self.map.values()]
+
+
+# ---------------------------------------------------------------------------
+# Program database
+# ---------------------------------------------------------------------------
 
 
 class ProgramDatabase:
@@ -361,10 +460,10 @@ class ProgramDatabase:
             f"id={self.id},"
             f"total_programs={len(self.programs)},"
         )
-        if getattr(self, "elite_map", None) is not None:
-            db_str += f"mode=MAP-Elites," f"elite_map={self.elite_map}"
+        if self.elite_map is not None:
+            db_str += f"mode=MAP-Elites,elite_map={self.elite_map}"
         else:
-            db_str += f"mode=standard," f"num_alive={self.num_alive}," f"max_alive={self.max_alive}"
+            db_str += f"mode=standard,num_alive={self.num_alive},max_alive={self.max_alive}"
         db_str += ")"
         return db_str
 
@@ -379,7 +478,7 @@ class ProgramDatabase:
         This method rebuilds the program cache, sorts programs by fitness,
         updates rank mappings, and identifies best and worst programs.
         """
-        if getattr(self, "elite_map", None) is not None:
+        if self.elite_map is not None:
             self._pids_pool_cache = self.elite_map.get_elite_ids()
         else:
             self._pids_pool_cache = [pid for pid, is_alive in self.is_alive.items() if is_alive]
@@ -539,7 +638,7 @@ class ProgramDatabase:
             A tuple of (parent Program, list of inspiration Programs).
         """
         selection_func: Callable = self._selection_methods.get(selection_policy)
-        if not selection_func:
+        if selection_func is None:
             raise ValueError(f"Selection policy must be in {self._selection_methods.keys()}")
 
         if pids_pool is None:

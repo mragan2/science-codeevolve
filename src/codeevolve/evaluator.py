@@ -18,10 +18,16 @@ import threading
 import json
 import time
 import psutil
-import pathlib
+from pathlib import Path
 import shutil
 import sys
 from codeevolve.database import Program
+from codeevolve.utils.constants import LANGUAGE_TO_EXTENSION, DEFAULT_EXTENSION
+
+
+# ---------------------------------------------------------------------------
+# Process utilities
+# ---------------------------------------------------------------------------
 
 
 def get_process_tree(parent: psutil.Process) -> List[psutil.Process]:
@@ -111,6 +117,11 @@ def mem_monitor(
         return
 
 
+# ---------------------------------------------------------------------------
+# Evaluator
+# ---------------------------------------------------------------------------
+
+
 class Evaluator:
     """Evaluates programs by executing them in a controlled environment.
 
@@ -122,8 +133,8 @@ class Evaluator:
 
     def __init__(
         self,
-        eval_path: pathlib.Path | str,
-        cwd: Optional[pathlib.Path | str],
+        eval_path: Path | str,
+        cwd: Optional[Path | str],
         timeout_s: int,
         max_mem_b: Optional[int],
         mem_check_interval_s: Optional[float],
@@ -157,32 +168,11 @@ class Evaluator:
                     "mem_check_interval_s must be positive when max_mem_b is specified"
                 )
 
-        self.eval_path: pathlib.Path = pathlib.Path(eval_path)
-        self.cwd: Optional[pathlib.Path] = pathlib.Path(cwd) if cwd is not None else None
+        self.eval_path: Path = Path(eval_path)
+        self.cwd: Optional[Path] = Path(cwd) if cwd is not None else None
         self.timeout_s: int = timeout_s
         self.max_mem_b: Optional[int] = max_mem_b
         self.mem_check_interval_s: Optional[float] = mem_check_interval_s
-        self.language2extension: Dict[str, str] = {
-            "python": ".py",
-            "javascript": ".js",
-            "java": ".java",
-            "cpp": ".cpp",
-            "c": ".c",
-            "csharp": ".cs",
-            "go": ".go",
-            "rust": ".rs",
-            "typescript": ".ts",
-            "php": ".php",
-            "ruby": ".rb",
-            "swift": ".swift",
-            "kotlin": ".kt",
-            "scala": ".scala",
-            "r": ".r",
-            "matlab": ".m",
-            "shell": ".sh",
-            "powershell": ".ps1",
-            "sql": ".sql",
-        }
         self.logger: logging.Logger = logger if logger is not None else logging.getLogger(__name__)
 
     def __repr__(self):
@@ -230,7 +220,7 @@ class Evaluator:
         """
         self.logger.info("Attempting to evaluate program...")
 
-        extension: str = self.language2extension.get(prog.language, ".txt")
+        extension: str = LANGUAGE_TO_EXTENSION.get(prog.language, DEFAULT_EXTENSION)
         returncode: int = 1
         output: Optional[str] = None
         error: Optional[str] = None
@@ -245,20 +235,16 @@ class Evaluator:
 
         tmp_dir: Optional[tempfile.TemporaryDirectory] = None
         temp_cwd_dir: Optional[tempfile.TemporaryDirectory] = None
-        temp_cwd: Optional[pathlib.Path] = None
-
-        # we copy cwd to temp and pass this temp directory as
-        # the cwd for the program being executed
-        tmp_dir: tempfile.TemporaryDirectory = tempfile.TemporaryDirectory(delete=False)
-        temp_cwd: Optional[tempfile.TemporaryDirectory] = None
-        temp_cwd_dir: Optional[tempfile.TemporaryDirectory] = None
+        temp_cwd: Optional[Path] = None
 
         try:
+            # we copy cwd to temp and pass this temp directory as
+            # the cwd for the program being executed
             tmp_dir = tempfile.TemporaryDirectory(delete=False)
 
             if self.cwd:
                 temp_cwd_dir = tempfile.TemporaryDirectory(delete=False)
-                temp_cwd = pathlib.Path(temp_cwd_dir.name)
+                temp_cwd = Path(temp_cwd_dir.name)
                 try:
                     shutil.copytree(self.cwd, temp_cwd, dirs_exist_ok=True)
                 except Exception as err:

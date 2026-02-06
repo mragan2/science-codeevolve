@@ -18,9 +18,54 @@ import time
 from collections import deque
 import re
 import os
-import pathlib
+from pathlib import Path
 
-from codeevolve.islands import GlobalData
+from codeevolve.islands.sync import GlobalSyncData
+from codeevolve.utils.constants import DEFAULT_MAX_LOG_MSG_SIZE, ISLAND_LOG_FILE, ASCII_NAME
+
+
+# ---------------------------------------------------------------------------
+# Time formatting utilities
+# ---------------------------------------------------------------------------
+
+
+def format_elapsed_time(seconds: float) -> str:
+    """Formats elapsed time in seconds to a human-readable string.
+
+    Args:
+        seconds: Elapsed time in seconds.
+
+    Returns:
+        Formatted string like "1h 23m 45s" or "5m 30s" or "45s".
+    """
+    hours, remainder = divmod(int(seconds), 3600)
+    minutes, secs = divmod(remainder, 60)
+
+    if hours > 0:
+        return f"{hours}h {minutes}m {secs}s"
+    elif minutes > 0:
+        return f"{minutes}m {secs}s"
+    else:
+        return f"{secs}s"
+
+
+def get_elapsed_time(global_data: GlobalSyncData) -> float:
+    """Calculates the total elapsed time including checkpoint offset.
+
+    Args:
+        global_data: Shared data structure containing timing information.
+
+    Returns:
+        Total elapsed time in seconds.
+    """
+    current_elapsed: float = time.time() - global_data.start_time.value
+    return current_elapsed + global_data.elapsed_time_offset.value
+
+
+# ---------------------------------------------------------------------------
+# Formatters and handlers
+# ---------------------------------------------------------------------------
+
 
 class SizeLimitedFormatter(logging.Formatter):
     """Custom logging formatter that enforces a maximum message size.
@@ -39,7 +84,10 @@ class SizeLimitedFormatter(logging.Formatter):
     """
 
     def __init__(
-        self, fmt: Optional[str] = None, datefmt: Optional[str] = None, max_msg_sz: int = 256
+        self,
+        fmt: Optional[str] = None,
+        datefmt: Optional[str] = None,
+        max_msg_sz: int = DEFAULT_MAX_LOG_MSG_SIZE,
     ) -> None:
         """Initialize the size-limited formatter.
 
@@ -125,12 +173,17 @@ class QueueHandler(logging.Handler):
             self.handleError(record)
 
 
+# ---------------------------------------------------------------------------
+# Logger factory
+# ---------------------------------------------------------------------------
+
+
 def get_logger(
     island_id: int = 0,
-    results_dir: Optional[pathlib.Path] = None,
+    results_dir: Optional[Path] = None,
     append_mode: bool = False,
     log_queue: Optional[mp.Queue] = None,
-    max_msg_sz: int = 256,
+    max_msg_sz: int = DEFAULT_MAX_LOG_MSG_SIZE,
 ) -> logging.Logger:
     """Creates a logger instance for an island with file and optional queue handlers.
     This function sets up a logger that writes to both a file and optionally to
@@ -174,7 +227,7 @@ def get_logger(
 
         if results_dir:
             fh: logging.FileHandler = logging.FileHandler(
-                results_dir.joinpath("results.log"), mode="a" if append_mode else "w"
+                results_dir.joinpath(ISLAND_LOG_FILE), mode="a" if append_mode else "w"
             )
             fh.setLevel(logging.INFO)
             fh.setFormatter(logFormatter)
@@ -183,9 +236,36 @@ def get_logger(
     return logger
 
 
+# ---------------------------------------------------------------------------
+# CLI dashboard logger
+# ---------------------------------------------------------------------------
+
+
+def _print_global_status(args: Dict[str, Any], global_data: GlobalSyncData) -> None:
+    """Prints the global status of the CodeEvolve algorithm.
+
+    Args:
+        args: Dictionary containing command-line arguments and configuration.
+        global_data: Shared data structure containing global algorithm state.
+    """
+    elapsed: float = get_elapsed_time(global_data)
+    elapsed_str: str = format_elapsed_time(elapsed)
+    print("=" * 100)
+    print(ASCII_NAME)
+    print("=" * 100)
+    print("=" * 46 + " STATUS " + "=" * 46)
+    print(f"> ELAPSED TIME = {elapsed_str}")
+    print(f"> CPU COUNT = {global_data.cpu_count.value}")
+    print(f"> INPT DIR = {args['inpt_dir']}")
+    print(f"> CFG PATH = {args['cfg_path']}")
+    print(f"> OUT DIR = {args['out_dir']}")
+    print(f"> GLOBAL BEST SOLUTION = {global_data.best_sol}")
+    print(f"> GLOBAL EARLY STOPPING COUNTER = {global_data.early_stop_counter.value}")
+
+
 def cli_logger(
     args: Dict[str, Any],
-    global_data: GlobalData,
+    global_data: GlobalSyncData,
     queue: mp.Queue,
     num_islands: int,
     refresh_rate: float = 0.5,
@@ -211,48 +291,40 @@ def cli_logger(
     island_epochs: Dict[int, str] = {i: "Initializing..." for i in range(num_islands)}
     epoch_pattern = re.compile(r"========= EPOCH (\d+) =========")
 
-    try:
-        while True:
-            while not queue.empty():
-                message = queue.get_nowait()
-                if message is None:
-                    os.system("cls" if os.name == "nt" else "clear")
-                    print("Program finished.")
-                    return
+    while True:
+        while not queue.empty():
+            message = queue.get_nowait()
+            if message is None:
+                os.system("cls" if os.name == "nt" else "clear")
+                _print_global_status(args, global_data)
+                print("=" * 45 + " FINISHED " + "=" * 45)
+                return
 
-                match = island_id_pattern.search(message)
-                if match:
-                    island_id = int(match.group(1))
+            match = island_id_pattern.search(message)
+            if match:
+                island_id = int(match.group(1))
 
-                    epoch_match = epoch_pattern.search(message)
-                    if epoch_match:
-                        epoch_num = epoch_match.group(1)
-                        island_epochs[island_id] = epoch_num
+                epoch_match = epoch_pattern.search(message)
+                if epoch_match:
+                    epoch_num = epoch_match.group(1)
+                    island_epochs[island_id] = epoch_num
 
-                    if island_id in island_logs:
-                        clean_message = island_id_pattern.sub("", message).strip()
-                        island_logs[island_id].append(clean_message)
+                if island_id in island_logs:
+                    clean_message = island_id_pattern.sub("", message).strip()
+                    island_logs[island_id].append(clean_message)
 
-            os.system("cls" if os.name == "nt" else "clear")
-
-            print("=" * 15 + " CODEEVOLVE STATUS " + "=" * 15)
-            print(f"> INPT DIR = {args['inpt_dir']}")
-            print(f"> CFG PATH = {args['cfg_path']}")
-            print(f"> OUT DIR = {args['out_dir']}")
-            print(f"> GLOBAL BEST SOLUTION = {global_data.best_sol}")
-            print(f"> GLOBAL EARLY STOPPING COUNTER = {global_data.early_stop_counter.value}")
-            for i in sorted(island_logs.keys()):
-                current_epoch = island_epochs.get(i, "N/A")
-                print(f"=== ISLAND {i} | EPOCH {current_epoch} ===")
-                if not island_logs[i]:
-                    print("(Waiting for messages...)")
-                else:
-                    for msg in island_logs[i]:
-                        print(f"  > {msg}")
-                print("-" * 45)
-
-            time.sleep(refresh_rate)
-
-    except (KeyboardInterrupt, ValueError):
         os.system("cls" if os.name == "nt" else "clear")
-        print("\nProgram interrupted.")
+
+        _print_global_status(args, global_data)
+        for i in sorted(island_logs.keys()):
+            current_epoch = island_epochs.get(i, "N/A")
+            print(f"=== ISLAND {i} | EPOCH {current_epoch} ===")
+            if not island_logs[i]:
+                print("(Waiting for messages...)")
+            else:
+                for msg in island_logs[i]:
+                    print(f"  > {msg}")
+            print("-" * 45)
+            
+        print("=" * 100)
+        time.sleep(refresh_rate)

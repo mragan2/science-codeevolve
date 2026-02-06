@@ -12,7 +12,7 @@
 
 import pytest
 
-from codeevolve.utils.parsing_utils import (
+from codeevolve.utils.parsing import (
     apply_diff,
     SearchAndReplaceError,
     DiffError,

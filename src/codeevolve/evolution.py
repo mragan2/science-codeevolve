@@ -11,7 +11,8 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
+from dataclasses import dataclass
 from uuid import uuid4
 import logging
 from pathlib import Path
@@ -19,21 +20,106 @@ import yaml
 import numpy as np
 
 from codeevolve.database import Program, ProgramDatabase, EliteFeature
-from codeevolve.lm import OpenAILM, LMEnsemble, OpenAIEmbedding
+from codeevolve.lm.openai import OpenAIEnsemble, OpenAIEmbedding
 from codeevolve.evaluator import Evaluator
 from codeevolve.prompt.sampler import PromptSampler, format_prog_msg
-from codeevolve.islands import (
-    IslandData,
-    GlobalData,
-    sync_migrate,
-    early_stopping_check,
-)
-from codeevolve.scheduler import ExplorationRateScheduler, SCHEDULER_TYPES
-from codeevolve.utils.parsing_utils import apply_diff
-from codeevolve.utils.logging_utils import get_logger
-from codeevolve.utils.ckpt_utils import save_ckpt, load_ckpt
 
-MAX_LOG_MSG_SZ: int = 256
+from codeevolve.islands.sync import GlobalSyncData
+from codeevolve.islands.graph import IslandCommunicationData
+from codeevolve.islands.migration import sync_migrate
+
+from codeevolve.scheduler import ExplorationRateScheduler, SCHEDULER_TYPES
+from codeevolve.utils.parsing import apply_diff
+from codeevolve.utils.logging import get_logger, get_elapsed_time
+from codeevolve.utils.ckpt import save_ckpt, load_ckpt, save_run_metadata
+from codeevolve.utils.constants import (
+    DEFAULT_EVOLVE_START_MARKER,
+    DEFAULT_EVOLVE_END_MARKER,
+    DEFAULT_PROMPT_START_MARKER,
+    DEFAULT_PROMPT_END_MARKER,
+    DEFAULT_EVAL_TIMEOUT_S,
+    DEFAULT_MAX_MEM_BYTES,
+    DEFAULT_MEM_CHECK_INTERVAL_S,
+    DEFAULT_MIGRATION_INTERVAL,
+    DEFAULT_MIGRATION_RATE,
+    DEFAULT_MAX_LOG_MSG_SIZE,
+    BEST_SOLUTION_FILE,
+    BEST_PROMPT_FILE,
+    LANGUAGE_TO_EXTENSION,
+)
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _get_markers(evolve_config: Dict[str, Any]) -> Tuple[str, str, str, str]:
+    """Extracts code and prompt block markers from configuration.
+
+    Args:
+        evolve_config: Evolution-specific configuration.
+
+    Returns:
+        Tuple of (evolve_start, evolve_end, prompt_start, prompt_end) markers.
+    """
+    return (
+        evolve_config.get("evolve_start_marker", DEFAULT_EVOLVE_START_MARKER),
+        evolve_config.get("evolve_end_marker", DEFAULT_EVOLVE_END_MARKER),
+        evolve_config.get("mp_start_marker", DEFAULT_PROMPT_START_MARKER),
+        evolve_config.get("mp_end_marker", DEFAULT_PROMPT_END_MARKER),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Evolutionary loop functions
+# ---------------------------------------------------------------------------
+
+
+def early_stopping_check(
+    num_islands: int,
+    improved_local_fitness: bool,
+    global_data: GlobalSyncData,
+    logger: logging.Logger,
+) -> None:
+    """Coordinates early stopping decision across all islands.
+
+    This function implements a distributed early stopping mechanism where
+    all islands must report no improvement before the early stopping counter
+    is incremented. Uses barriers to ensure all islands participate in the decision.
+
+    Args:
+        num_islands: Total number of islands in the system.
+        improved_local_fitness: Whether this island improved its best fitness.
+        global_data: Shared data structures for coordination.
+        logger: Logger instance for this island.
+    """
+    if not improved_local_fitness:
+        with global_data.lock:
+            # indicates if an island didnt improve locally
+            global_data.early_stop_aux.value += 1
+
+    logger.info("Waiting for all islands to report progress...")
+    global_data.barrier.wait()
+    logger.info("All islands synced.")
+
+    with global_data.lock:
+        # first to arrive is the leader, makes the early stop check,
+        # and then sets the aux to -1 so no other island can do the same
+        if global_data.early_stop_aux.value != -1:
+            if global_data.early_stop_aux.value == num_islands:
+                global_data.early_stop_counter.value += 1
+            else:
+                global_data.early_stop_counter.value = 0
+
+            global_data.early_stop_aux.value = (
+                -1
+            )  # flag for other islands to not repeat the above code
+
+    logger.info("Waiting for other islands to finish early stopping check...")
+    global_data.barrier.wait()
+    logger.info("All islands synced.")
+
+    global_data.early_stop_aux.value = 0  # reset to zero
 
 
 def select_parents(
@@ -171,8 +257,7 @@ async def run_meta_prompting(
     """
     logger.info("=== META-PROMPT STEP ===")
 
-    mp_start_marker: str = evolve_config.get("mp_start_marker", "# PROMPT-BLOCK-START")
-    mp_end_marker: str = evolve_config.get("mp_end_marker", "# PROMPT-BLOCK-END")
+    _, _, mp_start_marker, mp_end_marker = _get_markers(evolve_config)
 
     prompt_diff: str = ""
 
@@ -244,6 +329,7 @@ async def run_meta_prompting(
         island_found=isl_id,
         model_id=0,
         model_msg=prompt_diff,
+        depth=parent_prompt.depth + 1,
     )
     if not gen_init_pop:
         child_prompt.parent_id = parent_prompt.id
@@ -253,7 +339,7 @@ async def run_meta_prompting(
 
 
 async def generate_solution(
-    ensemble: LMEnsemble,
+    ensemble: OpenAIEnsemble,
     prompt_sampler: PromptSampler,
     sol_db: ProgramDatabase,
     prompt: Program,
@@ -306,8 +392,7 @@ async def generate_solution(
     """
     logger.info("=== EVOLVE CODE STEP ===")
 
-    evolve_start_marker: str = evolve_config.get("evolve_start_marker", "# EVOLVE-BLOCK-START")
-    evolve_end_marker: str = evolve_config.get("evolve_end_marker", "# EVOLVE-BLOCK-END")
+    evolve_start_marker, evolve_end_marker, _, _ = _get_markers(evolve_config)
 
     ## BUILD MESSAGE CHAT
     messages = prompt_sampler.build(
@@ -380,6 +465,7 @@ async def generate_solution(
         inspiration_ids=[ins.id for ins in inspirations],
         model_id=model_id,
         model_msg=sol_diff,
+        depth=parent_sol.depth + 1,
     )
     return child_sol, True
 
@@ -446,7 +532,7 @@ async def evaluate_and_store(
         prompt.features = child_sol.features
         prompt_db.update_caches()
 
-    ## EMBEDDINNG (Optional)
+    ## EMBEDDING (Optional)
     if evolve_config.get("use_embedding", False) and embedding is not None:
         try:
             logger.info(f"Attempting to obtain embedding with model {embedding.model_name}...")
@@ -488,8 +574,8 @@ async def evaluate_and_store(
 
 def handle_migration(
     epoch: int,
-    isl_data: IslandData,
-    global_data: GlobalData,
+    isl_data: IslandCommunicationData,
+    global_data: GlobalSyncData,
     sol_db: ProgramDatabase,
     evolve_config: Dict[str, Any],
     logger: logging.Logger,
@@ -525,9 +611,11 @@ def handle_migration(
     if isl_data.in_neigh is None and isl_data.out_neigh is None:
         return
 
-    if epoch % evolve_config.get("migration_interval", 20) == 0:
+    if epoch % evolve_config.get("migration_interval", DEFAULT_MIGRATION_INTERVAL) == 0:
         logger.info("=== MIGRATION STEP ===")
-        out_migrants = sol_db.get_migrants(migration_rate=evolve_config.get("migration_rate", 0.1))
+        out_migrants = sol_db.get_migrants(
+            migration_rate=evolve_config.get("migration_rate", DEFAULT_MIGRATION_RATE)
+        )
         in_migrants = sync_migrate(
             out_migrants=out_migrants,
             isl_data=isl_data,
@@ -549,16 +637,15 @@ async def codeevolve_loop(
     evolve_state: Dict[str, Any],
     init_sol: Program,
     init_prompt: Program,
-    config: Dict[Any, Any],
     evolve_config: Dict[str, Any],
     args: Dict[str, Any],
-    isl_data: IslandData,
-    global_data: GlobalData,
+    isl_data: IslandCommunicationData,
+    global_data: GlobalSyncData,
     sol_db: ProgramDatabase,
     prompt_db: ProgramDatabase,
     prompt_sampler: PromptSampler,
-    exploration_ensemble: LMEnsemble,
-    exploitation_ensemble: LMEnsemble,
+    exploration_ensemble: OpenAIEnsemble,
+    exploitation_ensemble: OpenAIEnsemble,
     evaluator: Evaluator,
     embedding: Optional[OpenAIEmbedding],
     scheduler: Optional[ExplorationRateScheduler],
@@ -602,12 +689,36 @@ async def codeevolve_loop(
     logger.info("============ STARTING EVOLUTIONARY LOOP ============")
     logger.info(f"Starting from epoch {start_epoch} with evolve_config = {evolve_config}")
 
+    def _do_checkpoint(epoch_num: int) -> None:
+        """Save checkpoint and optionally run metadata (island 0 only)."""
+        best_lang: str = sol_db.programs[sol_db.best_prog_id].language
+        save_ckpt(
+            curr_epoch=epoch_num,
+            prompt_db=prompt_db,
+            sol_db=sol_db,
+            evolve_state=evolve_state,
+            scheduler=scheduler,
+            best_sol_path=args["isl_out_dir"].joinpath(
+                BEST_SOLUTION_FILE + LANGUAGE_TO_EXTENSION.get(best_lang, ".txt")
+            ),
+            best_prompt_path=args["isl_out_dir"].joinpath(BEST_PROMPT_FILE),
+            ckpt_dir=args["ckpt_dir"],
+            logger=logger,
+        )
+        if isl_data.id == 0:
+            elapsed_s: float = get_elapsed_time(global_data)
+            cpus: int = global_data.cpu_count.value
+            save_run_metadata(args["out_dir"], epoch_num, elapsed_s, cpus)
+            logger.info(
+                f"Saved run metadata (elapsed={elapsed_s:.1f}s, cpus={cpus})"
+                f" for epoch {epoch_num}."
+            )
+
     meta_prompting: bool = evolve_config.get("meta_prompting", False)
     use_map_elites: bool = evolve_config.get("use_map_elites", False)
     exploration_rate: float = (
         scheduler.exploration_rate if scheduler is not None else evolve_config["exploration_rate"]
     )
-    use_dynamic_depth: bool = evolve_config.get("use_dynamic_depth", False)
     epoch: int = start_epoch + 1
 
     for epoch in range(start_epoch + 1, evolve_config["num_epochs"] + 1):
@@ -677,7 +788,9 @@ async def codeevolve_loop(
         )
 
         # EVOLVE SOLUTION
-        ensemble: LMEnsemble = exploration_ensemble if not exploitation else exploitation_ensemble
+        ensemble: OpenAIEnsemble = (
+            exploration_ensemble if not exploitation else exploitation_ensemble
+        )
         chat_depth: Optional[int] = evolve_config.get("max_chat_depth", None) if exploitation else 0
 
         child_sol, evolve_success = await generate_solution(
@@ -735,20 +848,7 @@ async def codeevolve_loop(
             logger.info("Waiting for other islands to arrive at barrier...")
             global_data.barrier.wait()
             logger.info("All islands arrived. Proceeding to save ckpt.")
-            save_ckpt(
-                curr_epoch=epoch,
-                prompt_db=prompt_db,
-                sol_db=sol_db,
-                evolve_state=evolve_state,
-                scheduler=scheduler,
-                best_sol_path=args["isl_out_dir"].joinpath(
-                    "best_sol"
-                    + evaluator.language2extension[sol_db.programs[sol_db.best_prog_id].language]
-                ),
-                best_prompt_path=args["isl_out_dir"].joinpath("best_prompt.txt"),
-                ckpt_dir=args["ckpt_dir"],
-                logger=logger,
-            )
+            _do_checkpoint(epoch)
 
         # EARLY STOPPING
         logger.info("=== GLOBAL EARLY STOPPING CHECK STEP ===")
@@ -756,12 +856,9 @@ async def codeevolve_loop(
             with global_data.lock:
                 if global_data.best_sol.fitness.value <= child_sol.fitness:
                     logger.info("Global best solution improved.")
-                    global_data.best_sol.fitness.value = child_sol.fitness
-                    global_data.best_sol.iteration_found.value = child_sol.iteration_found
-                    global_data.best_sol.island_found.value = child_sol.island_found
+                    global_data.best_sol.update_from_program(child_sol)
 
         early_stopping_check(
-            island_id=isl_data.id,
             num_islands=evolve_config["num_islands"],
             improved_local_fitness=improved_local_fitness,
             global_data=global_data,
@@ -793,27 +890,450 @@ async def codeevolve_loop(
     logger.info("====== ALGORITHM FINISHED ======")
     logger.info(f"Best solution: {sol_db.programs[sol_db.best_prog_id]}")
     logger.info(f"Best prompt: {prompt_db.programs[prompt_db.best_prog_id]}")
-    save_ckpt(
-        curr_epoch=epoch,
-        prompt_db=prompt_db,
-        sol_db=sol_db,
-        evolve_state=evolve_state,
-        scheduler=scheduler,
-        best_sol_path=args["isl_out_dir"].joinpath(
-            "best_sol" + evaluator.language2extension[sol_db.programs[sol_db.best_prog_id].language]
-        ),
-        best_prompt_path=args["isl_out_dir"].joinpath("best_prompt.txt"),
-        ckpt_dir=args["ckpt_dir"],
+    _do_checkpoint(epoch)
+
+
+# ---------------------------------------------------------------------------
+# CodeEvolve components dataclass and helper functions
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CodeEvolveComponents:
+    """Container for all components required by the CodeEvolve algorithm.
+
+    This dataclass groups together all the initialized components needed to run
+    the evolutionary loop, including databases, ensembles, evaluators, and state.
+
+    Attributes:
+        config: Full configuration dictionary loaded from YAML.
+        evolve_config: Evolution-specific configuration extracted from config.
+        start_epoch: Starting epoch number (0 for new run, >0 for checkpoint resume).
+        evolve_state: Dictionary tracking algorithm state including fitness history,
+                     token usage, errors, and early stopping counter.
+        init_sol: Initial solution program used to seed the population.
+        init_prompt: Initial prompt program used to seed the prompt population.
+        sol_db: Database managing the solution program population.
+        prompt_db: Database managing the prompt program population.
+        exploration_ensemble: LLM ensemble used during exploration phases.
+        exploitation_ensemble: LLM ensemble used during exploitation phases.
+        prompt_sampler: Sampler for building conversation prompts from lineages.
+        evaluator: Program evaluator with sandboxing and resource limits.
+        embedding: Optional embedding model for code vectorization.
+        scheduler: Optional exploration rate scheduler.
+        logger: Logger instance for this island.
+    """
+
+    config: Dict[str, Any]
+    evolve_config: Dict[str, Any]
+    start_epoch: int
+    evolve_state: Dict[str, Any]
+    init_sol: Program
+    init_prompt: Program
+    sol_db: ProgramDatabase
+    prompt_db: ProgramDatabase
+    exploration_ensemble: OpenAIEnsemble
+    exploitation_ensemble: OpenAIEnsemble
+    prompt_sampler: PromptSampler
+    evaluator: Evaluator
+    embedding: Optional[OpenAIEmbedding]
+    scheduler: Optional[ExplorationRateScheduler]
+    logger: logging.Logger
+
+
+def _create_ensembles(
+    config: Dict[str, Any],
+    evolve_config: Dict[str, Any],
+    args: Dict[str, Any],
+    logger: logging.Logger,
+) -> Tuple[OpenAIEnsemble, OpenAIEnsemble]:
+    """Creates and configures the exploration and exploitation LLM ensembles.
+
+    Args:
+        config: Full configuration dictionary.
+        evolve_config: Evolution-specific configuration.
+        args: Command-line arguments containing API credentials.
+        logger: Logger instance for the ensembles.
+
+    Returns:
+        Tuple of (exploration_ensemble, exploitation_ensemble).
+    """
+    evolve_start_marker, evolve_end_marker, _, _ = _get_markers(evolve_config)
+
+    exploration_ensemble: OpenAIEnsemble = OpenAIEnsemble(
+        models_cfg=config.get("EXPLORATION_ENSEMBLE", config.get("ENSEMBLE")),
+        api_key=args["api_key"],
+        api_base=args["api_base"],
+        logger=logger,
+        start_marker=evolve_start_marker,
+        end_marker=evolve_end_marker,
+    )
+    exploitation_ensemble: OpenAIEnsemble = OpenAIEnsemble(
+        models_cfg=config.get("EXPLOITATION_ENSEMBLE", config.get("ENSEMBLE")),
+        api_key=args["api_key"],
+        api_base=args["api_base"],
+        logger=logger,
+        start_marker=evolve_start_marker,
+        end_marker=evolve_end_marker,
+    )
+
+    return exploration_ensemble, exploitation_ensemble
+
+
+def _create_prompt_sampler(
+    config: Dict[str, Any],
+    evolve_config: Dict[str, Any],
+    args: Dict[str, Any],
+) -> PromptSampler:
+    """Creates and configures the prompt sampler.
+
+    Args:
+        config: Full configuration dictionary.
+        evolve_config: Evolution-specific configuration.
+        args: Command-line arguments containing API credentials.
+
+    Returns:
+        Configured PromptSampler instance.
+    """
+    evolve_start_marker, evolve_end_marker, mp_start_marker, mp_end_marker = _get_markers(
+        evolve_config
+    )
+
+    return PromptSampler(
+        aux_lm_cfg=config["SAMPLER_AUX_LM"],
+        api_key=args["api_key"],
+        api_base=args["api_base"],
+        evolve_start_marker=evolve_start_marker,
+        evolve_end_marker=evolve_end_marker,
+        prompt_start_marker=mp_start_marker,
+        prompt_end_marker=mp_end_marker,
+    )
+
+
+def _create_evaluator(
+    config: Dict[str, Any],
+    args: Dict[str, Any],
+    logger: logging.Logger,
+) -> Evaluator:
+    """Creates and configures the program evaluator.
+
+    Args:
+        config: Full configuration dictionary.
+        args: Command-line arguments containing input directory path.
+        logger: Logger instance for the evaluator.
+
+    Returns:
+        Configured Evaluator instance.
+    """
+    return Evaluator(
+        eval_path=Path(config["EVAL_FILE_NAME"]),
+        cwd=args["inpt_dir"],
+        timeout_s=config.get("EVAL_TIMEOUT", DEFAULT_EVAL_TIMEOUT_S),
+        max_mem_b=config.get("MAX_MEM_BYTES", DEFAULT_MAX_MEM_BYTES),
+        mem_check_interval_s=config.get("MEM_CHECK_INTERVAL_S", DEFAULT_MEM_CHECK_INTERVAL_S),
         logger=logger,
     )
 
 
-async def codeevolve(args: Dict[str, Any], isl_data: IslandData, global_data: GlobalData) -> None:
+def _create_embedding(
+    config: Dict[str, Any],
+    evolve_config: Dict[str, Any],
+    args: Dict[str, Any],
+) -> Optional[OpenAIEmbedding]:
+    """Creates the embedding model if configured.
+
+    Args:
+        config: Full configuration dictionary.
+        evolve_config: Evolution-specific configuration.
+        args: Command-line arguments containing API credentials.
+
+    Returns:
+        OpenAIEmbedding instance if use_embedding is enabled, None otherwise.
+
+    Raises:
+        AssertionError: If use_embedding is True but EMBEDDING config is missing.
+    """
+    if not evolve_config.get("use_embedding", False):
+        return None
+
+    assert (
+        config.get("EMBEDDING", None) is not None
+    ), "EMBEDDING model must be defined in config.yaml when use_embedding is true."
+
+    return OpenAIEmbedding(
+        **config["EMBEDDING"],
+        api_key=args["api_key"],
+        api_base=args["api_base"],
+    )
+
+
+def _create_scheduler(
+    evolve_config: Dict[str, Any],
+) -> Optional[ExplorationRateScheduler]:
+    """Creates the exploration rate scheduler if configured.
+
+    Args:
+        evolve_config: Evolution-specific configuration.
+
+    Returns:
+        ExplorationRateScheduler instance if use_scheduler is enabled, None otherwise.
+    """
+    if not evolve_config.get("use_scheduler", False):
+        return None
+
+    scheduler_type: str = evolve_config.get("type", "ExponentialDecayScheduler")
+    return SCHEDULER_TYPES[scheduler_type](
+        exploration_rate=evolve_config["exploration_rate"],
+        **evolve_config["scheduler_kwargs"],
+    )
+
+
+def _initialize_from_checkpoint(
+    args: Dict[str, Any],
+    scheduler: Optional[ExplorationRateScheduler],
+) -> Tuple[
+    ProgramDatabase,
+    ProgramDatabase,
+    Dict[str, Any],
+    Program,
+    Program,
+    Optional[ExplorationRateScheduler],
+]:
+    """Initializes databases and programs from a checkpoint.
+
+    Args:
+        args: Command-line arguments containing checkpoint path.
+        scheduler: Previously created scheduler (may be replaced by checkpoint).
+
+    Returns:
+        Tuple of (prompt_db, sol_db, evolve_state, init_prompt, init_sol, scheduler).
+    """
+    prompt_db: ProgramDatabase
+    sol_db: ProgramDatabase
+    evolve_state: Dict[str, Any]
+    sched: Optional[ExplorationRateScheduler]
+
+    prompt_db, sol_db, evolve_state, sched = load_ckpt(args["load_ckpt"], args["ckpt_dir"])
+
+    init_prompt: Program = prompt_db.programs[prompt_db.best_prog_id]
+    init_sol: Program = sol_db.programs[sol_db.best_prog_id]
+    init_sol.prompt_id = init_prompt.id
+
+    final_scheduler: Optional[ExplorationRateScheduler] = sched if sched is not None else scheduler
+
+    return prompt_db, sol_db, evolve_state, init_prompt, init_sol, final_scheduler
+
+
+def _initialize_new(
+    config: Dict[str, Any],
+    evolve_config: Dict[str, Any],
+    args: Dict[str, Any],
+    isl_id: int,
+    evaluator: Evaluator,
+    logger: logging.Logger,
+) -> Tuple[ProgramDatabase, ProgramDatabase, Dict[str, Any], Program, Program]:
+    """Initializes databases and programs for a new run.
+
+    Args:
+        config: Full configuration dictionary.
+        evolve_config: Evolution-specific configuration.
+        args: Command-line arguments containing input directory path.
+        isl_id: Island identifier.
+        evaluator: Program evaluator for executing the initial solution.
+        logger: Logger instance.
+
+    Returns:
+        Tuple of (prompt_db, sol_db, evolve_state, init_prompt, init_sol).
+
+    Raises:
+        AssertionError: If use_map_elites is True but MAP_ELITES config is missing.
+    """
+    logger.info("Starting anew.")
+
+    evolve_state: Dict[str, Any] = {
+        "early_stop_counter": 0,
+        "best_fit_hist": [],
+        "avg_fit_hist": [],
+        "errors": [],
+        "tok_usage": [],
+        "exploration": [],
+    }
+
+    features: Optional[List[EliteFeature]] = None
+    map_elites_cfg: Dict[str, Any] = config.get("MAP_ELITES", {})
+
+    if evolve_config.get("use_map_elites", False):
+        assert (
+            len(map_elites_cfg) > 0
+        ), "MAP_ELITES must be defined in config.yaml when use_map_elites is true."
+        features = []
+        for feature in map_elites_cfg["features"]:
+            features.append(
+                EliteFeature(
+                    name=feature["name"],
+                    min_val=feature["min_val"],
+                    max_val=feature["max_val"],
+                    num_bins=feature.get("num_bins", None),
+                )
+            )
+
+    prompt_db: ProgramDatabase = ProgramDatabase(
+        id=isl_id,
+        seed=config.get("SEED", None),
+        max_alive=evolve_config.get("max_size", None),
+        elite_map_type=None,
+        features=None,
+    )
+    sol_db: ProgramDatabase = ProgramDatabase(
+        id=isl_id,
+        seed=config.get("SEED", None),
+        max_alive=evolve_config.get("max_size", None),
+        elite_map_type=map_elites_cfg.get("elite_map_type", None),
+        features=features,
+        **map_elites_cfg.get("elite_map_kwargs", {}),
+    )
+
+    init_prompt: Program = Program(
+        id=str(uuid4()),
+        code=config["SYS_MSG"],
+        language="text",
+        iteration_found=0,
+        generation=0,
+        island_found=isl_id,
+        depth=0,
+    )
+    prompt_db.add(init_prompt)
+
+    init_sol_path: Path = (
+        args["inpt_dir"]
+        .joinpath(config["CODEBASE_PATH"])
+        .joinpath(config["INIT_FILE_DATA"]["filename"])
+    )
+    with open(init_sol_path) as f:
+        init_sol: Program = Program(
+            id=str(uuid4()),
+            code=f.read(),
+            language=config["INIT_FILE_DATA"]["language"],
+            iteration_found=0,
+            generation=0,
+            island_found=isl_id,
+            depth=0,
+        )
+
+    init_sol.returncode, _, _, init_sol.error, init_sol.eval_metrics = evaluator.execute(init_sol)
+    if init_sol.returncode == 0:
+        init_sol.fitness = init_sol.eval_metrics[evolve_config["fitness_key"]]
+    init_sol.prog_msg = format_prog_msg(prog=init_sol)
+    init_sol.features = init_sol.eval_metrics
+    sol_db.add(init_sol)
+
+    return prompt_db, sol_db, evolve_state, init_prompt, init_sol
+
+
+def setup_codeevolve_components(
+    args: Dict[str, Any],
+    isl_data: IslandCommunicationData,
+    global_data: GlobalSyncData,
+) -> CodeEvolveComponents:
+    """Sets up and initializes all components required for the CodeEvolve algorithm.
+
+    This function handles all initialization logic including:
+    - Logger setup
+    - Configuration loading
+    - LLM ensemble creation (exploration and exploitation)
+    - Prompt sampler creation
+    - Evaluator creation with resource limits
+    - Optional embedding model and scheduler creation
+    - Database initialization (either from checkpoint or new)
+    - Initial solution evaluation
+
+    Args:
+        args: Dictionary containing command-line arguments and runtime configuration
+              including paths, API keys, checkpoint settings, etc.
+        isl_data: Island-specific data including ID and communication channels.
+        global_data: Shared data structures for coordinating between islands.
+
+    Returns:
+        CodeEvolveComponents instance containing all initialized components ready
+        for the evolutionary loop.
+    """
+    logger: logging.Logger = get_logger(
+        island_id=isl_data.id,
+        results_dir=args["isl_out_dir"],
+        append_mode=(args["load_ckpt"] != 0),
+        log_queue=global_data.log_queue,
+        max_msg_sz=DEFAULT_MAX_LOG_MSG_SIZE,
+    )
+    logger.info("=== CodeEvolve ===")
+    logger.info("====== PREPARING COMPONENTS ======")
+
+    with open(args["cfg_path"], "r") as f:
+        config: Dict[str, Any] = yaml.safe_load(f)
+    evolve_config: Dict[str, Any] = config["EVOLVE_CONFIG"]
+
+    exploration_ensemble: OpenAIEnsemble
+    exploitation_ensemble: OpenAIEnsemble
+    exploration_ensemble, exploitation_ensemble = _create_ensembles(
+        config, evolve_config, args, logger
+    )
+
+    prompt_sampler: PromptSampler = _create_prompt_sampler(config, evolve_config, args)
+    evaluator: Evaluator = _create_evaluator(config, args, logger)
+    embedding: Optional[OpenAIEmbedding] = _create_embedding(config, evolve_config, args)
+    scheduler: Optional[ExplorationRateScheduler] = _create_scheduler(evolve_config)
+
+    start_epoch: int = args["load_ckpt"]
+    prompt_db: ProgramDatabase
+    sol_db: ProgramDatabase
+    evolve_state: Dict[str, Any]
+    init_prompt: Program
+    init_sol: Program
+
+    if args["load_ckpt"]:
+        prompt_db, sol_db, evolve_state, init_prompt, init_sol, scheduler = (
+            _initialize_from_checkpoint(args, scheduler)
+        )
+    else:
+        prompt_db, sol_db, evolve_state, init_prompt, init_sol = _initialize_new(
+            config, evolve_config, args, isl_data.id, evaluator, logger
+        )
+
+    return CodeEvolveComponents(
+        config=config,
+        evolve_config=evolve_config,
+        start_epoch=start_epoch,
+        evolve_state=evolve_state,
+        init_sol=init_sol,
+        init_prompt=init_prompt,
+        sol_db=sol_db,
+        prompt_db=prompt_db,
+        exploration_ensemble=exploration_ensemble,
+        exploitation_ensemble=exploitation_ensemble,
+        prompt_sampler=prompt_sampler,
+        evaluator=evaluator,
+        embedding=embedding,
+        scheduler=scheduler,
+        logger=logger,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Main entry point
+# ---------------------------------------------------------------------------
+
+
+async def codeevolve(
+    args: Dict[str, Any],
+    isl_data: IslandCommunicationData,
+    global_data: GlobalSyncData,
+) -> None:
     """Main entry point for the CodeEvolve algorithm on a single island.
 
-    This function initializes all components needed for evolutionary program synthesis,
-    sets up the initial population, and launches the evolutionary loop. It handles
-    both fresh starts and checkpoint resumption.
+    This function orchestrates the evolutionary program synthesis process by:
+    1. Setting up all required components via setup_codeevolve_components()
+    2. Synchronizing the global best solution across islands
+    3. Checking for early termination conditions
+    4. Launching the evolutionary loop
 
     The algorithm co-evolves programs and prompts using language models, with support
     for distributed execution across multiple islands, fitness-based selection,
@@ -827,215 +1347,51 @@ async def codeevolve(args: Dict[str, Any], isl_data: IslandData, global_data: Gl
         global_data: Shared data structures for coordinating between islands including
                     global best solution tracking and synchronization primitives.
     """
-    # ===== LOGGER INITIALIZATION =====
-    logger: logging.Logger = get_logger(
-        island_id=isl_data.id,
-        results_dir=args["isl_out_dir"],
-        append_mode=(args["load_ckpt"] != 0),
-        log_queue=global_data.log_queue,
-        max_msg_sz=MAX_LOG_MSG_SZ,
-    )
-    logger.info("=== CodeEvolve ===")
+    components: CodeEvolveComponents = setup_codeevolve_components(args, isl_data, global_data)
+    components.logger.info(f"sol_db={components.sol_db}")
+    components.logger.info(f"prompt_db={components.prompt_db}")
+    components.logger.info(f"exploration_ensemble={components.exploration_ensemble}")
+    components.logger.info(f"exploitation_ensemble={components.exploitation_ensemble}")
+    components.logger.info(f"prompt_sampler={components.prompt_sampler}")
+    components.logger.info(f"evaluator={components.evaluator}")
+    components.logger.info(f"embedding={components.embedding}")
+    components.logger.info(f"scheduler={components.scheduler}")
+    components.logger.info(f"init_prog={components.init_sol}")
 
-    # ===== COMPONENT INITIALIZATION =====
-    logger.info("====== PREPARING COMPONENTS ======")
-    start_epoch: int = args["load_ckpt"]
-    evolve_state: Dict[str, Any] = {
-        "early_stop_counter": 0,
-        "best_fit_hist": [],
-        "avg_fit_hist": [],
-        "errors": [],
-        "tok_usage": [],
-        "exploration": [],
-    }
-    with open(args["cfg_path"], "r") as f:
-        config: Dict[str, Any] = yaml.safe_load(f)
-    evolve_config = config["EVOLVE_CONFIG"]
-
-    # ===== ISLAND SEED =====
-    base_seed: Optional[int] = config.get("SEED", None)
-    island_seed: Optional[int] = base_seed + isl_data.id if base_seed is not None else None
-    if island_seed is not None:
-        np.random.seed(island_seed)
-
-    # ===== ENSEMBLES =====
-    exploration_ensemble: LMEnsemble = LMEnsemble(
-        models_cfg=config.get("EXPLORATION_ENSEMBLE", config.get("ENSEMBLE")),
-        api_key=args["api_key"],
-        api_base=args["api_base"],
-        logger=logger,
-    )
-    exploitation_ensemble: LMEnsemble = LMEnsemble(
-        models_cfg=config.get("EXPLOITATION_ENSEMBLE", config.get("ENSEMBLE")),
-        api_key=args["api_key"],
-        api_base=args["api_base"],
-        logger=logger,
-    )
-
-    # ===== PROMPT SAMPLER =====
-    prompt_sampler = PromptSampler(
-        aux_lm=OpenAILM(
-            **config["SAMPLER_AUX_LM"],
-            api_key=args["api_key"],
-            api_base=args["api_base"],
-        ),
-    )
-
-    # ===== PROGRAM EVALUATOR =====
-    evaluator: Evaluator = Evaluator(
-        eval_path=Path(config["EVAL_FILE_NAME"]),
-        cwd=args["inpt_dir"],
-        timeout_s=config.get("EVAL_TIMEOUT", 1 * 60),
-        max_mem_b=config.get("MAX_MEM_BYTES", 1 * 1024 * 1024 * 1024),
-        mem_check_interval_s=config.get("MEM_CHECK_INTERVAL_S", 0.1),
-        logger=logger,
-    )
-
-    # ===== OPTIONAL: EMBEDDING MODEL =====
-    embedding: Optional[OpenAIEmbedding] = None
-    if evolve_config.get("use_embedding", False):
-        assert (
-            config.get("EMBEDDING", None) is not None
-        ), "EMBEDDING model must be defined in config.yaml when use_embedding is true."
-        embedding = OpenAIEmbedding(
-            **config["EMBEDDING"],
-            api_key=args["api_key"],
-            api_base=args["api_base"],
-        )
-
-    # ===== OPTIONAL: EXPLORATION RATE SCHEDULER =====
-    scheduler: Optional[ExplorationRateScheduler] = None
-    if evolve_config.get("use_scheduler", False):
-        scheduler = SCHEDULER_TYPES[evolve_config.get("type", "ExponentialDecayScheduler")](
-            exploration_rate=evolve_config["exploration_rate"],
-            **evolve_config["scheduler_kwargs"],
-        )
-
-    # ===== CHECKPOINT OR INIT =====
-    if args["load_ckpt"]:
-        prompt_db, sol_db, evolve_state, sched = load_ckpt(args["load_ckpt"], args["ckpt_dir"])
-        init_prompt: Program = prompt_db.programs[prompt_db.best_prog_id]
-        init_sol: Program = sol_db.programs[sol_db.best_prog_id]
-        init_sol.prompt_id = init_prompt.id
-        scheduler = sched if sched is not None else scheduler
-    else:
-        logger.info("Starting anew.")
-        features: Optional[List[EliteFeature]] = None
-        map_elites_cfg: Dict[str, Any] = config.get("MAP_ELITES", {})
-
-        if evolve_config.get("use_map_elites", False):
-            # ===== MAP-ELITES CONFIG =====
-            assert (
-                len(map_elites_cfg) > 0
-            ), "MAP_ELITES must be defined in config.yaml when use_map_elites is true."
-            features = []
-            for feature in map_elites_cfg["features"]:
-                features.append(
-                    EliteFeature(
-                        name=feature["name"],
-                        min_val=feature["min_val"],
-                        max_val=feature["max_val"],
-                        num_bins=feature.get("num_bins", None),
-                    )
-                )
-
-        # ===== DATABASE INITIALIZATION =====
-
-        prompt_db: ProgramDatabase = ProgramDatabase(
-            id=isl_data.id,
-            seed=island_seed,
-            max_alive=evolve_config.get("max_size", None),
-            elite_map_type=None,
-            features=None,
-        )
-        sol_db: ProgramDatabase = ProgramDatabase(
-            id=isl_data.id,
-            seed=island_seed,
-            max_alive=evolve_config.get("max_size", None),
-            elite_map_type=map_elites_cfg.get("elite_map_type", None),
-            features=features,
-            **map_elites_cfg.get("elite_map_kwargs", {}),
-        )
-
-        # ===== INITIAL PROMPT =====
-        init_prompt: Program = Program(
-            id=str(uuid4()),
-            code=config["SYS_MSG"],
-            language="text",
-            iteration_found=0,
-            generation=0,
-            island_found=isl_data.id,
-        )
-        prompt_db.add(init_prompt)
-
-        # ===== INITIAL SOLUTION =====
-        with open(
-            args["inpt_dir"]
-            .joinpath(config["CODEBASE_PATH"])
-            .joinpath(config["INIT_FILE_DATA"]["filename"])
-        ) as f:
-            init_sol: Program = Program(
-                id=str(uuid4()),
-                code=f.read(),
-                language=config["INIT_FILE_DATA"]["language"],
-                iteration_found=0,
-                generation=0,
-                island_found=isl_data.id,
-            )
-
-        init_sol.returncode, _, _, init_sol.error, init_sol.eval_metrics = evaluator.execute(
-            init_sol
-        )
-        if init_sol.returncode == 0:
-            init_sol.fitness = init_sol.eval_metrics[evolve_config["fitness_key"]]
-        init_sol.prog_msg = format_prog_msg(prog=init_sol)
-        init_sol.features = init_sol.eval_metrics
-        sol_db.add(init_sol)
-
-    # ===== COMPONENT LOG  =====
-    logger.info(f"sol_db={sol_db}")
-    logger.info(f"prompt_db={prompt_db}")
-    logger.info(f"exploration_ensemble={exploration_ensemble}")
-    logger.info(f"exploitation_ensemble={exploitation_ensemble}")
-    logger.info(f"prompt_sampler={prompt_sampler}")
-    logger.info(f"evaluator={evaluator}")
-    logger.info(f"embedding={embedding}")
-    logger.info(f"scheduler={scheduler}")
-    logger.info(f"init_prog={init_sol}")
-
-    # ===== UPDATE GLOBAL BEST SOLUTION =====
     with global_data.lock:
-        global_data.early_stop_counter.value = evolve_state["early_stop_counter"]
-        if global_data.best_sol.fitness.value <= init_sol.fitness:
-            global_data.best_sol.fitness.value = init_sol.fitness
-            global_data.best_sol.iteration_found.value = init_sol.iteration_found
-            global_data.best_sol.island_found.value = init_sol.island_found
+        global_data.early_stop_counter.value = components.evolve_state["early_stop_counter"]
+        if global_data.best_sol.fitness.value <= components.init_sol.fitness:
+            global_data.best_sol.update_from_program(components.init_sol)
 
-    # ===== CHECK IF ALREADY COMPLETE ====
-    if start_epoch == evolve_config["num_epochs"] or (
-        evolve_state["early_stop_counter"] == evolve_config["early_stopping_rounds"]
-    ):
-        logger.info("Loaded checkpoint already finished the algorithm.")
+    is_already_complete: bool = (
+        components.start_epoch == components.evolve_config["num_epochs"]
+        or components.evolve_state["early_stop_counter"]
+        == components.evolve_config["early_stopping_rounds"]
+    )
+    if is_already_complete:
+        components.logger.info("Loaded checkpoint already finished the algorithm.")
         return
 
-    # ===== LAUNCH EVOLUTIONARY LOOP =====
+    components.logger.info("Waiting for other islands to finish setup...")
+    global_data.barrier.wait()
+    components.logger.info("All islands finished. Starting CodeEvolve loop.")
+
     await codeevolve_loop(
-        start_epoch,
-        evolve_state,
-        init_sol,
-        init_prompt,
-        config,
-        evolve_config,
+        components.start_epoch,
+        components.evolve_state,
+        components.init_sol,
+        components.init_prompt,
+        components.evolve_config,
         args,
         isl_data,
         global_data,
-        sol_db,
-        prompt_db,
-        prompt_sampler,
-        exploration_ensemble,
-        exploitation_ensemble,
-        evaluator,
-        embedding,
-        scheduler,
-        logger,
+        components.sol_db,
+        components.prompt_db,
+        components.prompt_sampler,
+        components.exploration_ensemble,
+        components.exploitation_ensemble,
+        components.evaluator,
+        components.embedding,
+        components.scheduler,
+        components.logger,
     )

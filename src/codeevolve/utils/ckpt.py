@@ -11,12 +11,14 @@
 # ===--------------------------------------------------------------------------------------===#
 
 from typing import Any, Dict, Tuple, Optional
+import json
 import logging
 import pickle as pkl
-import pathlib
+from pathlib import Path
 
 from codeevolve.database import ProgramDatabase
 from codeevolve.scheduler import ExplorationRateScheduler
+from codeevolve.utils.constants import RUN_METADATA_FILE, CHECKPOINT_FILE_FORMAT
 
 
 def save_ckpt(
@@ -25,11 +27,11 @@ def save_ckpt(
     sol_db: ProgramDatabase,
     evolve_state: Dict[str, Any],
     scheduler: Optional[ExplorationRateScheduler],
-    best_sol_path: str | pathlib.Path,
-    best_prompt_path: str | pathlib.Path,
-    ckpt_dir: str | pathlib.Path,
+    best_sol_path: str | Path,
+    best_prompt_path: str | Path,
+    ckpt_dir: str | Path,
     logger: Optional[logging.Logger] = None,
-):
+) -> None:
     """Saves a checkpoint of the evolutionary algorithm state.
 
     This function creates a checkpoint by serializing the current state of the
@@ -56,13 +58,13 @@ def save_ckpt(
     if scheduler is not None:
         data["scheduler"] = scheduler
     if isinstance(best_sol_path, str):
-        best_sol_path = pathlib.Path(best_sol_path)
+        best_sol_path = Path(best_sol_path)
     if isinstance(best_prompt_path, str):
-        best_prompt_path = pathlib.Path(best_prompt_path)
+        best_prompt_path = Path(best_prompt_path)
     if isinstance(ckpt_dir, str):
-        ckpt_dir = pathlib.Path(ckpt_dir)
+        ckpt_dir = Path(ckpt_dir)
 
-    with open(ckpt_dir.joinpath(f"ckpt_{curr_epoch}.pkl"), "wb") as f:
+    with open(ckpt_dir.joinpath(CHECKPOINT_FILE_FORMAT.format(epoch=curr_epoch)), "wb") as f:
         pkl.dump(data, f, protocol=pkl.HIGHEST_PROTOCOL)
 
     with open(best_sol_path, "w") as f:
@@ -76,7 +78,7 @@ def save_ckpt(
     logger.info(f"Checkpoint {curr_epoch} successfully saved.")
 
 
-def load_ckpt(epoch: int, ckpt_dir: str | pathlib.Path) -> Tuple[
+def load_ckpt(epoch: int, ckpt_dir: str | Path) -> Tuple[
     Optional[ProgramDatabase],
     Optional[ProgramDatabase],
     Optional[Dict[str, Any]],
@@ -99,9 +101,9 @@ def load_ckpt(epoch: int, ckpt_dir: str | pathlib.Path) -> Tuple[
             - Exploration scheduler, None if not found
     """
     if isinstance(ckpt_dir, str):
-        ckpt_dir = pathlib.Path(ckpt_dir)
+        ckpt_dir = Path(ckpt_dir)
 
-    with open(ckpt_dir.joinpath(f"ckpt_{epoch}.pkl"), "rb") as f:
+    with open(ckpt_dir.joinpath(CHECKPOINT_FILE_FORMAT.format(epoch=epoch)), "rb") as f:
         data: Dict[str, Any] = pkl.load(f)
 
     return (
@@ -110,3 +112,69 @@ def load_ckpt(epoch: int, ckpt_dir: str | pathlib.Path) -> Tuple[
         data.get("evolve_state", None),
         data.get("scheduler", None),
     )
+
+
+def save_run_metadata(
+    out_dir: str | Path,
+    epoch: int,
+    elapsed_time: float,
+    cpu_count: int,
+) -> None:
+    """Saves run metadata (elapsed time and CPU count) to a JSON file.
+
+    This function saves metadata at each checkpoint epoch to enable
+    accurate tracking when resuming from checkpoints.
+
+    Args:
+        out_dir: Output directory where the metadata file will be saved.
+        epoch: Current epoch number.
+        elapsed_time: Total elapsed time in seconds up to this checkpoint.
+        cpu_count: Number of CPUs available to the process.
+    """
+    if isinstance(out_dir, str):
+        out_dir = Path(out_dir)
+
+    metadata_file: Path = out_dir.joinpath(RUN_METADATA_FILE)
+
+    data: Dict[str, Any] = {}
+    if metadata_file.exists():
+        with open(metadata_file, "r") as f:
+            data = json.load(f)
+
+    data[str(epoch)] = {
+        "elapsed_time": elapsed_time,
+        "cpu_count": cpu_count,
+    }
+
+    with open(metadata_file, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def load_run_metadata(out_dir: str | Path, epoch: int) -> Dict[str, Any]:
+    """Loads run metadata from a JSON file for a specific checkpoint epoch.
+
+    Args:
+        out_dir: Output directory containing the metadata file.
+        epoch: Epoch number to load metadata for.
+
+    Returns:
+        Dictionary with 'elapsed_time' and 'cpu_count' keys, or defaults if not found.
+    """
+    if isinstance(out_dir, str):
+        out_dir = Path(out_dir)
+
+    metadata_file: Path = out_dir.joinpath(RUN_METADATA_FILE)
+
+    default_metadata: Dict[str, Any] = {"elapsed_time": 0.0, "cpu_count": 0}
+
+    if not metadata_file.exists():
+        return default_metadata
+
+    with open(metadata_file, "r") as f:
+        data: Dict[str, Any] = json.load(f)
+
+    epoch_data = data.get(str(epoch), {})
+    return {
+        "elapsed_time": epoch_data.get("elapsed_time", 0.0),
+        "cpu_count": epoch_data.get("cpu_count", 0),
+    }

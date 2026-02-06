@@ -207,11 +207,7 @@ __marimo__/
 
 .vscode/
 .DS_Store
-
-# debug
 debug/
-mock/
-MODELS.md
-
 .sm_stage_simple
 jobs_history.json
+.codeevolve.lock

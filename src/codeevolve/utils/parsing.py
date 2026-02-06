@@ -6,13 +6,24 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 #
-# This file implements the parsing functions for parsing language models responses to
-# CodeEvolve's prompts.
+# This file implements the parsing functions for parsing inputs and language model responses
+# to CodeEvolve's prompts.
 #
 # ===--------------------------------------------------------------------------------------===#
 
 from typing import Dict, Tuple, List
 import re
+
+from codeevolve.utils.constants import (
+    DEFAULT_EVOLVE_START_MARKER,
+    DEFAULT_EVOLVE_END_MARKER,
+    DEFAULT_DIFF_REGEX,
+)
+
+
+# ---------------------------------------------------------------------------
+# Exceptions
+# ---------------------------------------------------------------------------
 
 
 class SearchAndReplaceError(Exception):
@@ -44,6 +55,11 @@ class EvolveBlockError(Exception):
     """
 
     pass
+
+
+# ---------------------------------------------------------------------------
+# Diff parsing and application
+# ---------------------------------------------------------------------------
 
 
 def _sanitize_block_content(text: str, start_marker: str, end_marker: str) -> str:
@@ -233,9 +249,9 @@ def apply_replacements(
 def apply_diff(
     parent_code: str,
     diff: str,
-    start_marker: str = "# EVOLVE-BLOCK-START",
-    end_marker: str = "# EVOLVE-BLOCK-END",
-    diff_regex: str = r"<{7}\s*SEARCH\s*\n?(.*?)\n?\s*={7}\s*\n?(.*?)\n?\s*>{7}\s*REPLACE",
+    start_marker: str = DEFAULT_EVOLVE_START_MARKER,
+    end_marker: str = DEFAULT_EVOLVE_END_MARKER,
+    diff_regex: str = DEFAULT_DIFF_REGEX,
 ) -> str:
     """Applies diff operations to marked blocks in parent code.
 
@@ -252,6 +268,15 @@ def apply_diff(
         end_marker: The string that marks the end of an evolve block.
         diff_regex: Regex pattern to match diff operations. The default handles
                     the "<<<<<<< SEARCH / ======= / >>>>>>> REPLACE" format.
+
+    Returns:
+        The modified source code with all diff operations applied to the
+        designated evolve blocks.
+
+    Raises:
+        DiffError: If no diff blocks are found in the diff string.
+        EvolveBlockError: If no evolve blocks are found in the parent code.
+        SearchAndReplaceError: If a search pattern cannot be found in any evolve block.
     """
 
     evolve_regex: str = rf"\s*{re.escape(start_marker)}\s*\n?(.*?)\n?\s*{re.escape(end_marker)}"

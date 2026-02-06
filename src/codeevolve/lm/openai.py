@@ -10,23 +10,36 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import asyncio
 from dataclasses import dataclass, field
 import logging
 import random
+import re
 import httpx
+import time
 
 from uuid import uuid4
 
 from openai import AsyncOpenAI
 
-# TODO: classes for open-source LM's executing locally.
+from codeevolve.lm.base import BaseLM, BaseEnsemble, BaseEmbedding
+from codeevolve.utils.parsing import find_evolve_block_spans
+from codeevolve.utils.constants import (
+    MOCK_MODEL_PREFIX,
+    DEFAULT_EVOLVE_START_MARKER,
+    DEFAULT_EVOLVE_END_MARKER,
+)
+
+
+# ---------------------------------------------------------------------------
+# Language model classes
+# ---------------------------------------------------------------------------
 
 
 @dataclass
-class OpenAILM:
+class OpenAILM(BaseLM):
     """A dataclass for managing OpenAI language model interactions.
 
     This class provides an interface for communicating with OpenAI-compatible APIs,
@@ -50,7 +63,7 @@ class OpenAILM:
 
     temp: float = 0.7
     top_p: float = 0.95
-    max_tok: int = None
+    max_tok: Optional[int] = None
 
     seed: Optional[int] = None
     weight: float = 1
@@ -106,15 +119,14 @@ class OpenAILM:
         Raises:
             ConnectionError: If all retry attempts fail to get a response.
         """
-        format_msgs = messages.copy()
         params: Dict[str, Any] = {
             "model": self.model_name,
-            "messages": format_msgs,
+            "messages": messages,
             "max_completion_tokens": self.max_tok,
             "user": f"user_{str(uuid4())}",
-            "seed": getattr(self, "seed", None),
-            "top_p": getattr(self, "top_p", 0.95),
-            "temperature": getattr(self, "temp", 1),
+            "seed": self.seed,
+            "top_p": self.top_p,
+            "temperature": self.temp,
         }
 
         retry_delay: int = 1
@@ -137,36 +149,229 @@ class OpenAILM:
                     )
 
 
-class LMEnsemble:
+@dataclass
+class MockOpenAILM(BaseLM):
+    """A mock language model that returns identity SEARCH/REPLACE operations.
+
+    This class is designed for debugging purposes, allowing CodeEvolve to run
+    without making actual API requests. When given a solution to evolve, it
+    returns a SEARCH/REPLACE diff that keeps the code unchanged (identity operation).
+
+    To use this mock, set the model_name to "MOCK" (or any name starting with "MOCK")
+    in your configuration.
+
+    Attributes:
+        model_name: The name of the mock model (for logging/display purposes).
+        start_marker: The marker indicating the start of an evolve block.
+        end_marker: The marker indicating the end of an evolve block.
+        weight: Weight for ensemble selection when used in an ensemble.
+    """
+
+    model_name: str = MOCK_MODEL_PREFIX
+    start_marker: str = DEFAULT_EVOLVE_START_MARKER
+    end_marker: str = DEFAULT_EVOLVE_END_MARKER
+    weight: float = 1.0
+
+    temp: float = 0.0
+    top_p: float = 1.0
+    max_tok: Optional[int] = None
+    seed: Optional[int] = None
+    retries: int = 0
+    api_base: Optional[str] = None
+    api_key: Optional[str] = None
+    verify_ssl: Optional[bool] = None
+
+    debug_sleep: float = 0.0
+
+    def __repr__(self) -> str:
+        """Returns a string representation of the MockOpenAILM instance.
+
+        Returns:
+            A formatted string showing key configuration parameters.
+        """
+        return f"{self.__class__.__name__}" f"(model_name={self.model_name}"
+
+    def _extract_code_from_messages(self, messages: List[Dict[str, str]]) -> Optional[str]:
+        """Extracts the target program code from the conversation messages.
+
+        The last message is always the user message containing the solution code
+        formatted as a markdown code block (```language ... ```).
+
+        Args:
+            messages: List of message dictionaries with 'role' and 'content' keys.
+
+        Returns:
+            The extracted code string, or None if no code block is found.
+        """
+        if not messages:
+            return None
+
+        last_message_content: str = messages[-1].get("content", "")
+        code_block_pattern: str = r"```\w*\n(.*?)```"
+        matches: List[str] = re.findall(code_block_pattern, last_message_content, re.DOTALL)
+
+        if matches:
+            return matches[-1]
+
+        return None
+
+    def _generate_identity_diff(self, code: str) -> str:
+        """Generates identity SEARCH/REPLACE diffs for all evolve blocks.
+
+        For each evolve block in the code, generates a diff that replaces the
+        block content with itself (identity operation).
+
+        Args:
+            code: The source code containing evolve blocks.
+
+        Returns:
+            A string containing SEARCH/REPLACE blocks for each evolve block.
+            Returns an empty diff block if no evolve blocks are found.
+        """
+        evolve_regex: str = (
+            rf"\s*{re.escape(self.start_marker)}\s*\n?(.*?)\n?\s*{re.escape(self.end_marker)}"
+        )
+
+        try:
+            evolve_spans: List[Tuple[int, int]] = find_evolve_block_spans(
+                parent_code=code, evolve_regex=evolve_regex
+            )
+        except Exception:
+            return "<<<<<<< SEARCH\n\n=======\n\n>>>>>>> REPLACE"
+
+        diff_parts: List[str] = []
+        for start, end in evolve_spans:
+            block_content: str = code[start:end]
+            diff_block: str = (
+                f"<<<<<<< SEARCH\n"
+                f"{block_content}\n"
+                f"=======\n"
+                f"{block_content}\n"
+                f">>>>>>> REPLACE"
+            )
+            diff_parts.append(diff_block)
+
+        return "\n\n".join(diff_parts)
+
+    async def generate(self, messages: List[Dict[str, str]]) -> Tuple[str, int, int]:
+        """Generates an identity SEARCH/REPLACE response for the input code.
+
+        This method extracts the code from the messages, finds all evolve blocks,
+        and returns a diff that keeps the code unchanged.
+
+        Args:
+            messages: List of message dictionaries with 'role' and 'content' keys
+                     following the OpenAI chat format.
+
+        Returns:
+            A tuple containing:
+                - Generated identity diff string
+                - Number of prompt tokens used (mocked as 0)
+                - Number of completion tokens used (mocked as 0)
+        """
+        code: Optional[str] = self._extract_code_from_messages(messages)
+
+        if code is None:
+            response: str = "<<<<<<< SEARCH\n\n=======\n\n>>>>>>> REPLACE"
+            return (response, 0, 0)
+
+        response: str = self._generate_identity_diff(code)
+
+        prompt_tokens: int = 0
+        completion_tokens: int = 0
+
+        time.sleep(self.debug_sleep)
+
+        return (response, prompt_tokens, completion_tokens)
+
+
+# ---------------------------------------------------------------------------
+# Factory and ensemble
+# ---------------------------------------------------------------------------
+
+
+def _create_lm_from_config(
+    model_cfg: Dict[str, Any],
+    api_key: str,
+    api_base: str,
+    mock_start_marker: str = DEFAULT_EVOLVE_START_MARKER,
+    mock_end_marker: str = DEFAULT_EVOLVE_END_MARKER,
+) -> Union[OpenAILM, MockOpenAILM]:
+    """Creates an LM instance based on the model configuration.
+
+    If the model_name starts with "MOCK", creates a MockOpenAILM instance.
+    Otherwise, creates a regular OpenAILM instance.
+
+    Args:
+        model_cfg: Configuration dictionary for the model.
+        api_key: API key for authentication (used only for real models).
+        api_base: Base URL for the API endpoint (used only for real models).
+        mock_start_marker: Start marker for mock model evolve blocks.
+        mock_end_marker: End marker for mock model evolve blocks.
+
+    Returns:
+        Either an OpenAILM or MockOpenAILM instance based on the model name.
+    """
+    model_name: str = model_cfg.get("model_name", "")
+    is_mock_model: bool = model_name.upper().startswith(MOCK_MODEL_PREFIX)
+    if is_mock_model:
+        mock_cfg: Dict[str, Any] = {
+            "model_name": model_cfg.get("model_name", MOCK_MODEL_PREFIX),
+            "weight": model_cfg.get("weight", 1.0),
+            "debug_sleep": model_cfg.get("debug_sleep", 0.0),
+            "start_marker": mock_start_marker,
+            "end_marker": mock_end_marker,
+        }
+        return MockOpenAILM(**mock_cfg)
+    else:
+        return OpenAILM(**model_cfg, api_key=api_key, api_base=api_base)
+
+
+class OpenAIEnsemble(BaseEnsemble):
     """An ensemble of language models for weighted random selection.
 
     This class manages multiple OpenAI language models and selects one randomly
     based on their configured weights for each generation request.
+
+    Supports mock models for debugging: set model_name to "MOCK" (or any name
+    starting with "MOCK") in the configuration to use a MockOpenAILM that returns
+    identity SEARCH/REPLACE operations without making API requests.
     """
 
     def __init__(
         self,
-        models_cfg: List[Dict[Any, Any]],
+        models_cfg: List[Dict[str, Any]],
         api_key: str,
         api_base: str,
-        seed: int = None,
+        seed: Optional[int] = None,
         logger: Optional[logging.Logger] = None,
+        start_marker: str = DEFAULT_EVOLVE_START_MARKER,
+        end_marker: str = DEFAULT_EVOLVE_END_MARKER,
     ):
         """Initializes the language model ensemble.
 
         Args:
             models_cfg: List of configuration dictionaries for each model.
+                       To use a mock model, set model_name to "MOCK" or any
+                       name starting with "MOCK".
             api_key: API key for authentication.
             api_base: Base URL for the API endpoint.
             seed: Random seed for reproducible model selection.
             logger: Logger instance for logging operations.
+            start_marker: Start marker for mock model evolve blocks.
+            end_marker: End marker for mock model evolve blocks.
         """
-        if models_cfg is None:
-            raise ValueError("Model configuration cannot be None.")
 
-        self.models_cfg: List[Dict[Any, Any]] = models_cfg
-        self.models: List[OpenAILM] = [
-            OpenAILM(**model_cfg, api_key=api_key, api_base=api_base) for model_cfg in models_cfg
+        self.models_cfg: List[Dict[str, Any]] = models_cfg
+        self.models: List[Union[OpenAILM, MockOpenAILM]] = [
+            _create_lm_from_config(
+                model_cfg,
+                api_key=api_key,
+                api_base=api_base,
+                mock_start_marker=start_marker,
+                mock_end_marker=end_marker,
+            )
+            for model_cfg in models_cfg
         ]
 
         self.weights: List[float] = [model.weight for model in self.models]
@@ -195,7 +400,22 @@ class LMEnsemble:
         lines.append(")")
         return "\n".join(lines)
 
-    async def generate(self, messages: List[Dict[str, str]]) -> Tuple[int, str, int]:
+    def configure_mocks(self, start_marker: str, end_marker: str) -> None:
+        """Configures evolve block markers for any mock models in the ensemble.
+
+        This method should be called after creating the ensemble to set the
+        correct markers from evolve_config. Only affects MockOpenAILM instances.
+
+        Args:
+            start_marker: The marker indicating the start of an evolve block.
+            end_marker: The marker indicating the end of an evolve block.
+        """
+        for model in self.models:
+            if isinstance(model, MockOpenAILM):
+                model.start_marker = start_marker
+                model.end_marker = end_marker
+
+    async def generate(self, messages: List[Dict[str, str]]) -> Tuple[int, int, str, int]:
         """Generates a response using a randomly selected model from the ensemble.
 
         Args:
@@ -227,8 +447,13 @@ class LMEnsemble:
         return (model_id, response, prompt_tok, compl_tok)
 
 
+# ---------------------------------------------------------------------------
+# Embedding
+# ---------------------------------------------------------------------------
+
+
 @dataclass
-class OpenAIEmbedding:
+class OpenAIEmbedding(BaseEmbedding):
     """A dataclass for managing OpenAI embedding computations.
 
     This class provides an interface for computing text embeddings using
