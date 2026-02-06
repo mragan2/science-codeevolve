@@ -16,7 +16,7 @@ usage() {
 Usage: graviton.sh <command> [options]
 
 Commands:
-  run [--run runN|N] [--next] [--cpu LIST] [--load-ckpt N] [--cfg-path PATH] [--no-taskset]
+  run [--run runN|N] [--next] [--cpu LIST] [--load-ckpt N] [--cfg-path PATH] [--no-taskset] [--y]
   warmstart <runN|N> [island]
   winner [args...]
   analyze
@@ -82,6 +82,7 @@ cmd_run() {
   local cpu_list="${CPU_LIST:-0-7}"
   local load_ckpt=0
   local use_taskset=1
+  local assume_yes=0
   local cfg_path="${CFG_PATH}"
 
   while [[ $# -gt 0 ]]; do
@@ -108,6 +109,10 @@ cmd_run() {
         ;;
       --no-taskset)
         use_taskset=0
+        shift
+        ;;
+      --y|--yes)
+        assume_yes=1
         shift
         ;;
       -h|--help)
@@ -152,6 +157,9 @@ cmd_run() {
     --load_ckpt="${load_ckpt}"
     --terminal_logging
   )
+  if [[ "${assume_yes}" -eq 1 ]]; then
+    cmd+=(--y)
+  fi
 
   if [[ "${use_taskset}" -eq 1 ]] && command -v taskset >/dev/null 2>&1; then
     cmd=(taskset --cpu-list "${cpu_list}" "${cmd[@]}")

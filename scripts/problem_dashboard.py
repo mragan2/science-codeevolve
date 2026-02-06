@@ -3250,6 +3250,9 @@ class Dashboard(tk.Tk):
             cmd += ["--no-taskset"]
         if ("--skip-dryad" in p.help_text) and ("--require-dryad" in p.help_text):
             cmd += ["--skip-dryad"] if self.skip_dryad_var.get() else ["--require-dryad"]
+        # Dashboard runs without a TTY, so auto-confirm if the script supports it.
+        if ("--y" in p.help_text) or ("--yes" in p.help_text):
+            cmd += ["--y"]
 
     def _cmd_analyze(self) -> None:
         p = self._selected_problem()
