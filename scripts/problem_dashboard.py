@@ -795,7 +795,7 @@ class Dashboard(tk.Tk):
         sidebar = ttk.Frame(paned, width=260)
         sidebar.columnconfigure(0, weight=1)
         sidebar.rowconfigure(0, weight=1)
-        sidebar.rowconfigure(1, weight=1)
+        sidebar.rowconfigure(1, weight=3)
         paned.add(sidebar, weight=0)
 
         # Runs list
@@ -877,6 +877,7 @@ class Dashboard(tk.Tk):
         self.cpu_var = tk.StringVar(value=os.environ.get("CPU_LIST", "0-7"))
         self.load_ckpt_var = tk.StringVar(value="0")
         self.winner_args_var = tk.StringVar(value="")
+        self.advanced_var = tk.BooleanVar(value=False)
         self.skip_dryad_var = tk.BooleanVar(value=True)
         self.no_taskset_var = tk.BooleanVar(value=False)
         self.cfg_var = tk.StringVar(value="")
@@ -885,18 +886,26 @@ class Dashboard(tk.Tk):
         r = 0
         ttk.Label(ctl, text="Run:").grid(row=r, column=0, sticky="w")
         ttk.Entry(ctl, textvariable=self.run_id_var, width=12).grid(row=r, column=1, sticky="w", padx=(4, 10))
-        ttk.Label(ctl, text="Island:").grid(row=r, column=2, sticky="w")
-        ttk.Entry(ctl, textvariable=self.island_var, width=4).grid(row=r, column=3, sticky="w", padx=(4, 10))
-        ttk.Label(ctl, text="CPU:").grid(row=r, column=4, sticky="w")
-        ttk.Entry(ctl, textvariable=self.cpu_var, width=8).grid(row=r, column=5, sticky="w", padx=(4, 10))
-        ttk.Label(ctl, text="Ckpt:").grid(row=r, column=6, sticky="w")
-        ttk.Entry(ctl, textvariable=self.load_ckpt_var, width=4).grid(row=r, column=7, sticky="w", padx=(4, 10))
+        lbl_island = ttk.Label(ctl, text="Island:")
+        lbl_island.grid(row=r, column=2, sticky="w")
+        ent_island = ttk.Entry(ctl, textvariable=self.island_var, width=4)
+        ent_island.grid(row=r, column=3, sticky="w", padx=(4, 10))
+        lbl_cpu = ttk.Label(ctl, text="CPU:")
+        lbl_cpu.grid(row=r, column=4, sticky="w")
+        ent_cpu = ttk.Entry(ctl, textvariable=self.cpu_var, width=8)
+        ent_cpu.grid(row=r, column=5, sticky="w", padx=(4, 10))
+        lbl_ckpt = ttk.Label(ctl, text="Ckpt:")
+        lbl_ckpt.grid(row=r, column=6, sticky="w")
+        ent_ckpt = ttk.Entry(ctl, textvariable=self.load_ckpt_var, width=4)
+        ent_ckpt.grid(row=r, column=7, sticky="w", padx=(4, 10))
 
         ttk.Label(ctl, text="Config:").grid(row=r, column=8, sticky="w")
         self.cfg_combo = ttk.Combobox(ctl, textvariable=self.cfg_var, values=[], state="readonly", width=22)
         self.cfg_combo.grid(row=r, column=9, sticky="w", padx=(4, 6))
         self.cfg_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_config_change())
         ttk.Button(ctl, text="Open", command=self._open_config).grid(row=r, column=10, sticky="w")
+        ttk.Checkbutton(ctl, text="Advanced", variable=self.advanced_var,
+                        command=self._toggle_advanced).grid(row=r, column=11, sticky="e", padx=(12, 0))
 
         # Row 1: checkboxes + winner args
         r = 1
@@ -906,9 +915,10 @@ class Dashboard(tk.Tk):
         self.skip_dryad_chk = ttk.Checkbutton(chk_frame, text="Skip Dryad (elegans)", variable=self.skip_dryad_var)
         self.skip_dryad_chk.pack(side="left", padx=(0, 12))
 
-        ttk.Label(ctl, text="Winner args:").grid(row=r, column=6, sticky="w", pady=(6, 0))
-        ttk.Entry(ctl, textvariable=self.winner_args_var, width=40).grid(
-            row=r, column=7, columnspan=4, sticky="we", pady=(6, 0), padx=(4, 0))
+        lbl_winner = ttk.Label(ctl, text="Winner args:")
+        lbl_winner.grid(row=r, column=6, sticky="w", pady=(6, 0))
+        ent_winner = ttk.Entry(ctl, textvariable=self.winner_args_var, width=40)
+        ent_winner.grid(row=r, column=7, columnspan=4, sticky="we", pady=(6, 0), padx=(4, 0))
 
         # Row 2: action buttons
         r = 2
@@ -917,30 +927,34 @@ class Dashboard(tk.Tk):
 
         self.btn_run = ttk.Button(btn_bar, text="Run", style="Accent.TButton", command=self._cmd_run)
         self.btn_run.pack(side="left", padx=(0, 4))
-        self.btn_run_next = ttk.Button(btn_bar, text="Run Next", style="Accent.TButton", command=self._cmd_run_next)
-        self.btn_run_next.pack(side="left", padx=(0, 4))
-
-        ttk.Separator(btn_bar, orient="vertical").pack(side="left", fill="y", padx=8)
-
-        self.btn_analyze = ttk.Button(btn_bar, text="Analyze", command=self._cmd_analyze)
-        self.btn_analyze.pack(side="left", padx=(0, 4))
-        self.btn_winner = ttk.Button(btn_bar, text="Winner", command=self._cmd_winner)
-        self.btn_winner.pack(side="left", padx=(0, 4))
-        self.btn_viz = ttk.Button(btn_bar, text="Visualize", command=self._cmd_viz)
-        self.btn_viz.pack(side="left", padx=(0, 4))
-        self.btn_tail = ttk.Button(btn_bar, text="Tail Log", command=self._cmd_tail)
-        self.btn_tail.pack(side="left", padx=(0, 4))
-        self.btn_warmstart = ttk.Button(btn_bar, text="Warmstart", command=self._cmd_warmstart)
-        self.btn_warmstart.pack(side="left", padx=(0, 4))
-        self.btn_ls = ttk.Button(btn_bar, text="List Runs", command=self._cmd_ls)
-        self.btn_ls.pack(side="left", padx=(0, 4))
-
-        ttk.Separator(btn_bar, orient="vertical").pack(side="left", fill="y", padx=8)
 
         self.btn_stop = ttk.Button(btn_bar, text="Stop", style="Danger.TButton",
                                    command=self._stop_proc, state="disabled")
-        self.btn_stop.pack(side="left", padx=(0, 4))
+        self.btn_stop.pack(side="left", padx=(8, 4))
         ttk.Button(btn_bar, text="Clear Log", command=self._clear_log).pack(side="left", padx=(0, 4))
+
+        self._adv_sep = ttk.Separator(btn_bar, orient="vertical")
+        self._adv_sep.pack(side="left", fill="y", padx=8)
+        self._adv_btns = ttk.Frame(btn_bar)
+        self._adv_btns.pack(side="left")
+
+        self.btn_run_next = ttk.Button(self._adv_btns, text="Run Next", style="Accent.TButton", command=self._cmd_run_next)
+        self.btn_run_next.pack(side="left", padx=(0, 4))
+        self.btn_analyze = ttk.Button(self._adv_btns, text="Analyze", command=self._cmd_analyze)
+        self.btn_analyze.pack(side="left", padx=(0, 4))
+        self.btn_winner = ttk.Button(self._adv_btns, text="Winner", command=self._cmd_winner)
+        self.btn_winner.pack(side="left", padx=(0, 4))
+        self.btn_viz = ttk.Button(self._adv_btns, text="Visualize", command=self._cmd_viz)
+        self.btn_viz.pack(side="left", padx=(0, 4))
+        self.btn_tail = ttk.Button(self._adv_btns, text="Tail Log", command=self._cmd_tail)
+        self.btn_tail.pack(side="left", padx=(0, 4))
+        self.btn_warmstart = ttk.Button(self._adv_btns, text="Warmstart", command=self._cmd_warmstart)
+        self.btn_warmstart.pack(side="left", padx=(0, 4))
+        self.btn_ls = ttk.Button(self._adv_btns, text="List Runs", command=self._cmd_ls)
+        self.btn_ls.pack(side="left", padx=(0, 4))
+
+        self._adv_grid_widgets = [lbl_island, ent_island, lbl_cpu, ent_cpu, lbl_ckpt, ent_ckpt, chk_frame, lbl_winner, ent_winner]
+        self._toggle_advanced()
 
         ttk.Separator(right, orient="horizontal").grid(row=0, column=0, sticky="sew")
 
@@ -1053,6 +1067,21 @@ class Dashboard(tk.Tk):
             self.skip_dryad_chk.state(["disabled"])
 
         self._sync_env_status()
+
+    def _toggle_advanced(self) -> None:
+        show = self.advanced_var.get()
+        for w in getattr(self, "_adv_grid_widgets", []):
+            if show:
+                w.grid()
+            else:
+                w.grid_remove()
+
+        if show:
+            self._adv_sep.pack(side="left", fill="y", padx=8)
+            self._adv_btns.pack(side="left")
+        else:
+            self._adv_btns.pack_forget()
+            self._adv_sep.pack_forget()
 
     # ------------------------------------------------------------------ Problem refresh
     def _refresh_problems(self) -> None:
