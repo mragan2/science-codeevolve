@@ -4,6 +4,19 @@ This directory contains template scripts and utilities for the CodeEvolve projec
 
 ## Contents
 
+### problem_dashboard.py
+
+Local GUI "launcher" for problem scripts in `problems/*/*.sh`.
+
+It lets you pick a problem and click actions like `run`, `analyze`, `winner`, `tail`,
+and (when available) `visualize`.
+
+Usage:
+
+```bash
+python scripts/problem_dashboard.py
+```
+
 ### find_winner.py
 
 **Template script** for finding the best solution across evolutionary runs.

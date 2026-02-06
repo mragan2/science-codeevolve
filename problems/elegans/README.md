@@ -27,23 +27,40 @@ workbook, so hardcoding or bypassing file I/O will fail.
 ## Directory Structure
 ```
 problems/elegans/
-├── input/                 # Evaluation script, connectome, and datasets
-├── configs/               # CodeEvolve configuration
-├── run.sh                 # Run CodeEvolve (run1)
-├── run2.sh                # Run CodeEvolve (run2, skips Dryad)
-├── run3.sh                # Run CodeEvolve (run3, skips Dryad)
-├── find_winner.py         # Evaluate and copy best solution
-├── FINAL_BEST_SOL.py      # Best solution snapshot
-└── WINNER_RUN_OUTPUT.txt  # Output from running the winner
+├── configs/                  # CodeEvolve configuration
+├── input/                    # Evaluation script, connectome, and datasets
+├── results/                  # Winner snapshots + logs
+├── raw/                      # Raw connectome source files (ODS + extracted)
+├── elegans.sh                # Unified helper commands
+├── run.sh                    # Wrapper for `elegans.sh run`
+├── run1.sh                   # Back-compat wrapper for `elegans.sh run`
+├── find_winner.py            # Evaluate and copy best solution
+└── visualize_elegans.py      # Visualization utility
 ```
 
-## Running CodeEvolve
+## Quick Commands
 ```bash
-cd problems/elegans
-./run.sh
+# Required for any run
+export API_KEY="..."
+export API_BASE="http://localhost:11434/v1"
+
+# Start a new run (auto-picks next runN)
+./problems/elegans/elegans.sh run
+
+# Warm-start from a previous run/island (default island = 0)
+./problems/elegans/elegans.sh warmstart run3 0
+
+# Analyze all runs
+./problems/elegans/elegans.sh analyze
+
+# Visualize a run
+./problems/elegans/elegans.sh viz run3 0
+
+# Watch live progress
+./problems/elegans/elegans.sh tail run4 0
 ```
 
-Or manually:
+## Running CodeEvolve (Manual)
 ```bash
 codeevolve \
   --inpt_dir=problems/elegans/input \
@@ -60,8 +77,13 @@ python find_winner.py
 This will:
 - Evaluate all `experiments/elegans/*/*/best_sol.py` candidates
 - Rank by `fitness`
-- Copy the best to `problems/elegans/FINAL_BEST_SOL.py`
-- Save output to `WINNER_RUN_OUTPUT.txt`
+- Copy the best to `problems/elegans/results/FINAL_BEST_SOL.py`
+- Save output to `problems/elegans/results/WINNER_RUN_OUTPUT.txt`
+
+Optional: warm-start from the winner and update SYS_MSG:
+```bash
+python find_winner.py --apply
+```
 
 ## Neuropeptide Atlases (Optional)
 You can enable neuropeptide expression + signaling priors via CeNGEN and a curated

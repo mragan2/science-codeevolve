@@ -1,109 +1,57 @@
 SYS_MSG: |
   # PROMPT-BLOCK-START
-  CONTEXT: You are optimizing a connectome-driven C. elegans locomotion simulator.
+  You are optimizing a connectome-driven C. elegans locomotion simulator.
+  Maximize fitness = 1/(1+loss). Current best: ~0.52. Target: >0.60.
 
-  GOAL:
-  Evolve the code to maximize fitness by matching C. elegans kinematics and neural
-  dynamics to real datasets (Dryad 2024 locomotion + WormWideWeb whole-brain activity).
-  
-  Current fitness: ~0.40 (target: >0.50)
-  Fitness = 1 / (1 + total_loss) where total_loss = behavior_loss + neural_loss + 0.1*consistency_penalty
-  
-  LOSS COMPONENT WEIGHTS (focus here):
-  Behavior Loss (weight 1.0):
-    - curv_mean: 0.35 (HIGHEST PRIORITY - curvature along body segments)
-    - curv_std: 0.25 (variation in curvature)
-    - curv_psd: 0.20 (frequency content of curvature waves)
-    - vel_mean: 0.10 (average speed)
-    - vel_std: 0.05
-    - vel_psd: 0.05
-    - traj_speed_mean/std: 0.05 each
-  
-  Neural Loss (weight 1.0):
-    - neural_mean: 0.4 (average firing rates)
-    - neural_std: 0.2 (variability)
-    - neural_corr: 0.4 (correlation structure between neurons)
-  
-  Consistency penalty (weight 0.1): positions vs velocities agreement
+  LOSS = 0.5*behavior + 0.5*neural + 0.1*consistency
+  Behavior weights: curv_mean 0.35★★★, curv_std 0.25★★, curv_psd 0.20★★, vel_mean 0.10, vel_std 0.05, vel_psd 0.05, traj_speed 0.10
+  Neural weights:   neural_mean 0.4, neural_std 0.2, neural_corr 0.4★★★
 
-  NON-NEGOTIABLE REQUIREMENTS (MUST PASS EVALUATION):
-  1) Load the real connectome from Excel (do NOT fabricate matrices).
-  2) Use sheet names: "hermaphrodite chemical" and "hermaphrodite gap jn symmetric"
-  3) Parse SI5 layout correctly (labels at row 3/col 4, data at row 4/col 4)
-  4) Extract neuron-neuron submatrix from intersection of row/column labels
-  5) All randomness seeded from CE_SEED environment variable
-  6) Output EXACTLY one JSON line with all required keys
+  TOP 3 PRIORITIES:
+  1. curv_mean (0.35w): Head bending too weak. Try steeper gradient:
+     segment_gains = np.exp(-np.linspace(0, 5.0, segs))
+     Or: segment_gains = np.linspace(1.0, 0.1, segs)**1.5
+  2. curv_psd (0.20w): Frequency content wrong. Try non-sinusoidal waveforms:
+     curv = np.tanh(3*np.sin(phase))  OR  sin(phase)+0.3*sin(2*phase)
+     Or: Kuramoto coupled oscillators (dθ/dt = ω + K*Σsin(θ_j-θ_i))
+  3. neural_corr (0.16 effective): Correlation structure off. Try:
+     - Stronger reciprocal inhibition (ava_avb_inhibition 0.5→0.8)
+     - Class-specific tau_m: command=0.25, sensory=0.08, motor=0.12
+     - Increase gamma_gap (0.06→0.10)
+     - Ornstein-Uhlenbeck correlated noise instead of white noise
 
-  EVOLUTION STRATEGY - MAKE SMALL, SAFE CHANGES:
-  
-  **PRIORITY 1: Parameter Tuning (SAFEST - do this first)**
-  - Neural dynamics: alpha, beta, gamma, tau_* values
-  - Motor control: base_speed, speed_gain, omega, turn_gain
-  - Body mechanics: damping, spring_k, segment properties
-  - Coupling strengths: pep_gain, gap coupling strength
-  - Time constants: tau_syn, tau_m, tau_pep
-  
-  **PRIORITY 2: Curvature Generation (MOST IMPORTANT for fitness)**
-  - Modify how motor drive maps to body curvature
-  - Adjust phase_offsets distribution (currently linear, try nonlinear)
-  - Tune traveling wave parameters (frequency, amplitude)
-  - Add proprioceptive feedback: segment angles → motor neurons
-  - Experiment with dorsal/ventral asymmetry weights
-  
-  **PRIORITY 3: Motor Readout Refinement**
-  - Weighted combinations of motor neuron groups
-  - Add interneuron contributions to drive signal
-  - Smooth motor drive with exponential moving average
-  - Try different drive formulas: sigmoid(fwd - bwd), tanh(weighted_sum)
-  
-  **PRIORITY 4: Neural Dynamics Tuning (if stable)**
-  - Adjust noise levels
-  - Tune synaptic time constants
-  - Modify adaptive gain parameters
-  - Balance excitation/inhibition
-  
-  **AVOID (these break code):**
-  - Changing core architecture (keep LIF model as-is)
-  - Modifying function signatures or return values
-  - Adding new complex neuron models from scratch
-  - Removing essential components
-  - Large multi-line replacements
-  
-  EDITING RULES (CRITICAL):
-  - Make ONE focused change per mutation
-  - Use precise SEARCH/REPLACE (exact string match required)
-  - Keep changes inside # EVOLVE-BLOCK-START / # EVOLVE-BLOCK-END only
-  - Preserve all working components
-  - Test that changes are syntactically valid
-  
-  STABILITY REQUIREMENTS:
-  - Maintain spectral normalization for all weight matrices
-  - Keep dt small (0.05-0.2 range)
-  - Ensure all arrays have correct shapes
-  - Clip extreme values to prevent NaN/inf
-  - Run within 60s timeout per seed
-  
-  SPECIFIC IMPROVEMENT TARGETS:
-  1. **Curvature statistics** (highest impact):
-     - Current issue: likely too uniform/simple wave patterns
-     - Try: variable phase offsets, feedback-driven modulation, segment coupling
-  
-  2. **Neural correlation structure**:
-     - Current issue: correlation matrix may not match biological patterns
-     - Try: adjust synaptic time constants, gap junction strength
-  
-  3. **Velocity dynamics**:
-     - Current issue: speed transitions may be too abrupt
-     - Try: smooth drive signal, momentum in movement
-  
-  KEYWORDS:
-  parameter tuning, curvature generation, motor control, neural dynamics, stability, small changes
+  ARCHITECTURAL ALTERNATIVES (try ONE per mutation):
+  A) Kuramoto phase oscillators for body segments
+  B) Izhikevich spiking model (dv/dt=0.04v²+5v+140-u+I)
+  C) Dorsal/ventral muscle asymmetry
+  D) Synaptic delay (chem_current from activity_history[t-2])
+
+  PARAMETER RANGES: tau_m [0.08,0.25], beta_chem [0.6,1.2], gamma_gap [0.04,0.15],
+  adapt_strength [0.05,0.25], bias_current [0.5,1.2], noise_std [0.04,0.15],
+  curv_amp_base [0.3,1.0], omega_forward [0.3,0.7]*2π
+
+  HARD CONSTRAINTS (violation → -inf fitness):
+  - Load REAL connectome from Excel SI5 (no fabricated matrices)
+  - Preserve function signature and return dict keys exactly
+  - Seed all randomness from CE_SEED env variable
+  - Output one JSON line: positions, velocities, curvature, neural, dt, n_neurons, chem_sum, chem_nnz, gap_sum, gap_nnz
+  - Keep dt in [0.02, 0.2], steps >= 300
+  - Do NOT remove W normalization or break connectome loading
+  - Do NOT add external dependencies beyond numpy/pandas/xml
+
+  STRATEGY: ONE structural change OR 2-3 related parameter tweaks per mutation.
+  Clip sigmoid/tanh inputs to [-10,10]. np.clip extreme values. Guard divide-by-zero.
   # PROMPT-BLOCK-END
 
 CODEBASE_PATH: "src/"
 INIT_FILE_DATA: {filename: "init_program.py", language: "python"}
 EVAL_FILE_NAME: "evaluate.py"
-EVAL_TIMEOUT: 360
+EVAL_TIMEOUT: 210
+POST_CKPT_CMD:
+  - python
+  - problems/elegans/find_winner.py
+POST_CKPT_CWD: .
+POST_CKPT_ISLAND: 0
 
 SEED: 42
 
@@ -112,27 +60,27 @@ MEM_CHECK_INTERVAL_S: 0.1
 
 EVOLVE_CONFIG:
   fitness_key: "fitness"
-  num_epochs: 120
+  num_epochs: 200
   ckpt: 10
   max_size: 60
-  init_pop: 15
+  init_pop: 8              # Faster startup, still enough diversity
 
-  exploration_rate: 0.30  # Reduced from 0.40 - less risky exploration
+  exploration_rate: 0.45   # High exploration to escape local optimum
   selection_policy: roulette
   selection_kwargs: {roulette_by_rank: True}
-  early_stopping_rounds: 60  # Increased patience
+  early_stopping_rounds: 60
 
-  num_islands: 2
+  num_islands: 4
   migration_topology: ring
-  migration_interval: 5
-  migration_rate: 0.25
+  migration_interval: 20   # Let islands diverge before sharing
+  migration_rate: 0.10
 
-  meta_prompting: True
-  use_embedding: True
+  meta_prompting: False    # Disabled: adds ~60s/epoch latency, not improving results
+  use_embedding: False     # Disabled: overhead without MAP-Elites
   use_map_elites: False
 
-  num_inspirations: 3
-  max_chat_depth: 3  # Allow refinement conversations
+  num_inspirations: 2      # Less context bloat → fewer SEARCH/REPLACE failures
+  max_chat_depth: 3        # Focused history
 
   mp_start_marker: "# PROMPT-BLOCK-START"
   mp_end_marker: "# PROMPT-BLOCK-END"
@@ -142,24 +90,34 @@ EVOLVE_CONFIG:
   use_scheduler: True
   type: PlateauScheduler
   scheduler_kwargs:
-    min_rate: 0.10  # Lower minimum for safer exploitation
-    max_rate: 0.30
-    plateau_threshold: 8  # More patience before increasing exploration
-    increase_factor: 1.08
-    decrease_factor: 0.92
+    min_rate: 0.20         # Higher floor to maintain exploration
+    max_rate: 0.55         # Higher ceiling for bold moves
+    plateau_threshold: 10  # Responsive to stalls
+    increase_factor: 1.12
+    decrease_factor: 0.90
 
-# Lower temperature for more conservative, stable mutations
+# Removed devstral-small-2:24b (no DIFF blocks) and nemotron-nano (malformed output)
+
 EXPLORATION_ENSEMBLE:
-  - {model_name: "qwen3-coder:480b-cloud", temp: 0.75, top_p: 0.88, retries: 5, weight: 0.6, verify_ssl: False}
-  - {model_name: "deepseek-v3.2:cloud", temp: 0.72, top_p: 0.88, retries: 5, weight: 0.4, verify_ssl: False}
+  # Primary architectural leap engine
+  - {model_name: "qwen3-coder:480b-cloud", temp: 0.78, top_p: 0.92, max_tok: 4096, retries: 3, weight: 0.45, verify_ssl: False}
+  # Strong reasoning + clever structural shortcuts
+  - {model_name: "deepseek-v3.2:cloud",    temp: 0.80, top_p: 0.90, max_tok: 4096, retries: 3, weight: 0.30, verify_ssl: False}
+  # Creative explorer for novel motifs
+  - {model_name: "minimax-m2.1:cloud",     temp: 0.82, top_p: 0.90, max_tok: 4096, retries: 3, weight: 0.25, verify_ssl: False}
 
-# Very conservative exploitation for stability
 EXPLOITATION_ENSEMBLE:
-  - {model_name: "glm-4.7:cloud", temp: 0.35, top_p: 0.85, retries: 5, weight: 0.7, verify_ssl: False}
-  - {model_name: "devstral-2:123b-cloud", temp: 0.35, top_p: 0.85, retries: 5, weight: 0.3, verify_ssl: False}
+  # Conservative stabilizer
+  - {model_name: "glm-4.7:cloud",          temp: 0.26, top_p: 0.84, max_tok: 4096, retries: 4, weight: 0.38, verify_ssl: False}
+  # Strong implementation agent
+  - {model_name: "devstral-2:123b-cloud",  temp: 0.24, top_p: 0.82, max_tok: 4096, retries: 4, weight: 0.30, verify_ssl: False}
+  # Polishing / tightening
+  - {model_name: "qwen3-coder:480b-cloud", temp: 0.22, top_p: 0.80, max_tok: 4096, retries: 3, weight: 0.22, verify_ssl: False}
+  # Alternative coding style
+  - {model_name: "deepseek-v3.2:cloud",    temp: 0.22, top_p: 0.82, max_tok: 4096, retries: 3, weight: 0.10, verify_ssl: False}
 
 SAMPLER_AUX_LM:
-  {model_name: "glm-4.7:cloud", temp: 0.25, top_p: 0.85, retries: 5, weight: 1, verify_ssl: False}
+  {model_name: "kimi-k2-thinking:cloud", temp: 0.18, top_p: 0.78, max_tok: 4096, retries: 3, weight: 1, verify_ssl: False}
 
 EMBEDDING:
   {model_name: "qwen3-embedding:4b", retries: 3, verify_ssl: False}

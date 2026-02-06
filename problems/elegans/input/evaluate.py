@@ -12,6 +12,30 @@ import h5py
 # ---- Connectome path helpers ----
 # We want evaluation and candidate code to reliably find the workbook regardless of CWD.
 ELEGANS_INPUT_DIR = Path(__file__).resolve().parent
+ELEGANS_CONFIG_PATH = ELEGANS_INPUT_DIR.parent / "configs" / "config.yaml"
+
+
+def _load_eval_timeout(default: int = 60) -> int:
+    env = os.environ.get("CE_EVAL_TIMEOUT", "").strip()
+    if env:
+        try:
+            val = int(float(env))
+            if val > 0:
+                return val
+        except Exception:
+            pass
+    if ELEGANS_CONFIG_PATH.exists():
+        try:
+            import yaml  # type: ignore
+
+            cfg = yaml.safe_load(ELEGANS_CONFIG_PATH.read_text())
+            if isinstance(cfg, dict) and "EVAL_TIMEOUT" in cfg:
+                val = int(float(cfg["EVAL_TIMEOUT"]))
+                if val > 0:
+                    return val
+        except Exception:
+            pass
+    return default
 
 def _iter_connectome_candidates():
     env_path = os.environ.get("CE_CONNECTOME_PATH", "").strip()
@@ -120,13 +144,17 @@ def expected_stats():
 
 DATA_DIR = Path(__file__).parent / "data"
 DRYAD_DIR = DATA_DIR / "dryad2024"
+DRYAD_FRET_DIR = DATA_DIR / "dryad2021_fret"
 WW_DIR = DATA_DIR / "wormwideweb" / "processed_h5" / "processed_h5"
 CACHE_WW = DATA_DIR / "targets_wormwideweb.npz"
 CACHE_DRYAD = DATA_DIR / "targets_dryad2024.npz"
+CACHE_FRET = DATA_DIR / "targets_dryad2021_fret.npz"
 
 PSD_BINS = 32
 NEURAL_K = 32
 REQUIRE_DRYAD = os.environ.get("CE_SKIP_DRYAD", "0").lower() not in {"1", "true", "yes"}
+REQUIRE_FRET = os.environ.get("CE_SKIP_DRYAD_FRET", "0").lower() not in {"1", "true", "yes"}
+REQUIRE_TRACKS = False
 
 
 def _psd(x, n_bins=PSD_BINS):
@@ -226,9 +254,11 @@ def _load_wormwideweb_targets():
             trace = f["gcamp/trace_array"][()]
             t_conf = f["timing/timestamp_confocal"][()]
 
+        dt_local = None
         if t_conf.size > 1:
             dt = float(np.median(np.diff(t_conf)))
             if np.isfinite(dt) and dt > 0:
+                dt_local = dt
                 dt_vals.append(dt)
 
         # Curvature (downsample to 10 segments)
@@ -246,7 +276,9 @@ def _load_wormwideweb_targets():
         # Trajectory speed from stage positions
         pos = np.stack([stage_x, stage_y], axis=1)
         if pos.shape[0] > 1:
-            if dt_vals:
+            if dt_local is not None:
+                dt_use = dt_local
+            elif dt_vals:
                 dt_use = dt_vals[-1]
             else:
                 dt_use = 1.0
@@ -409,6 +441,166 @@ def _load_dryad_targets():
     return payload
 
 
+def _iter_h5_datasets(h5):
+    for name in h5:
+        obj = h5[name]
+        if isinstance(obj, h5py.Dataset):
+            yield name, obj
+        elif isinstance(obj, h5py.Group):
+            for sub_name, sub_obj in _iter_h5_datasets(obj):
+                yield f"{name}/{sub_name}", sub_obj
+
+
+def _pick_curvature_arrays(h5):
+    arrays = []
+    for name, ds in _iter_h5_datasets(h5):
+        lname = name.lower()
+        if not any(k in lname for k in ("curv", "curvature", "kappa", "bend")):
+            continue
+        if ds.ndim != 2:
+            continue
+        if ds.size == 0:
+            continue
+        arr = ds[()]
+        arr = np.asarray(arr, dtype=float)
+        if arr.ndim != 2:
+            continue
+        # Try to orient as (T, segments)
+        if arr.shape[0] < arr.shape[1]:
+            arr = arr.T
+        if arr.shape[1] < 5:
+            continue
+        arrays.append(arr)
+    return arrays
+
+
+def _pick_curvature_arrays_from_dict(d):
+    arrays = []
+    for name, arr in d.items():
+        if not isinstance(name, str):
+            continue
+        lname = name.lower()
+        if not any(k in lname for k in ("curv", "curvature", "kappa", "bend")):
+            continue
+        if not isinstance(arr, np.ndarray):
+            continue
+        if arr.size == 0:
+            continue
+        # MATLAB cell arrays load as dtype=object; unwrap them
+        if arr.dtype == object:
+            for cell in arr.ravel():
+                if not isinstance(cell, np.ndarray):
+                    continue
+                if cell.ndim != 2 or cell.size == 0:
+                    continue
+                curv = cell.astype(float, copy=False)
+                if curv.shape[0] < curv.shape[1]:
+                    curv = curv.T
+                if curv.shape[1] < 5:
+                    continue
+                arrays.append(curv)
+            continue
+        if arr.ndim != 2:
+            continue
+        curv = arr.astype(float, copy=False)
+        if curv.shape[0] < curv.shape[1]:
+            curv = curv.T
+        if curv.shape[1] < 5:
+            continue
+        arrays.append(curv)
+    return arrays
+
+
+def _load_fret_targets():
+    if CACHE_FRET.exists():
+        try:
+            data = np.load(str(CACHE_FRET), allow_pickle=True)
+            if int(data.get("version", 0)) == 1:
+                payload = {k: data[k] for k in data.files}
+                if (
+                    np.isfinite(payload.get("curv_mean", 0.0)).all()
+                    and np.isfinite(payload.get("curv_std", 0.0)).all()
+                    and np.isfinite(payload.get("curv_psd", 0.0)).all()
+                ):
+                    return payload
+        except Exception:
+            pass
+
+    if not DRYAD_FRET_DIR.exists():
+        raise FileNotFoundError("Dryad 2021 FRET directory not found.")
+
+    zip_path = DRYAD_FRET_DIR / "dryad.zip"
+    extract_dir = DRYAD_FRET_DIR / "extracted"
+    if zip_path.exists() and not extract_dir.exists():
+        _extract_dryad_zip(zip_path, extract_dir)
+
+    search_root = extract_dir if extract_dir.exists() else DRYAD_FRET_DIR
+    mat_files = sorted(search_root.rglob("*.mat"))
+    if not mat_files:
+        raise FileNotFoundError("No Dryad 2021 FRET .mat files found.")
+
+    curv_mean = np.zeros(10, dtype=float)
+    curv_std = np.zeros(10, dtype=float)
+    curv_psd = np.zeros(PSD_BINS, dtype=float)
+    used = 0
+
+    for fp in mat_files:
+        arrays = []
+        try:
+            with h5py.File(fp, "r") as h5:
+                arrays = _pick_curvature_arrays(h5)
+        except Exception:
+            arrays = []
+
+        if not arrays:
+            try:
+                import scipy.io as sio  # type: ignore
+
+                md = sio.loadmat(fp)
+                arrays = _pick_curvature_arrays_from_dict(md)
+            except Exception:
+                arrays = []
+
+        for arr in arrays:
+            if arr.shape[0] < 5:
+                continue
+            curv = _downsample_curvature(arr, target_segments=10)
+            curv = np.nan_to_num(curv, nan=0.0, posinf=0.0, neginf=0.0)
+            curv_mean += curv.mean(axis=0)
+            curv_std += curv.std(axis=0)
+            curv_psd += _psd(curv.mean(axis=1))
+            used += 1
+
+    if used == 0:
+        raise FileNotFoundError(
+            "Dryad 2021 FRET files found but no curvature arrays could be parsed."
+        )
+
+    curv_mean /= used
+    curv_std /= used
+    curv_psd /= max(used, 1)
+    curv_mean = np.nan_to_num(curv_mean, nan=0.0, posinf=0.0, neginf=0.0)
+    curv_std = np.nan_to_num(curv_std, nan=0.0, posinf=0.0, neginf=0.0)
+    curv_psd = np.nan_to_num(curv_psd, nan=0.0, posinf=0.0, neginf=0.0)
+
+    payload = {
+        "version": 1,
+        "curv_mean": curv_mean,
+        "curv_std": curv_std,
+        "curv_psd": curv_psd,
+    }
+
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        np.savez_compressed(str(CACHE_FRET), **payload)
+    except Exception:
+        pass
+
+    return payload
+
+
+
+
 def _compute_candidate_features(out, target):
     positions = np.asarray(out.get("positions"), dtype=float)
     velocities = np.asarray(out.get("velocities"), dtype=float)
@@ -497,12 +689,23 @@ def evaluate(code_path, results_path):
         seeds = [0, 1, 2]
         metrics = []
         last_out = None
+        eval_timeout = _load_eval_timeout()
 
         ww_targets = _load_wormwideweb_targets()
         if REQUIRE_DRYAD:
-            dryad_targets = _load_dryad_targets()
+            try:
+                dryad_targets = _load_dryad_targets()
+            except FileNotFoundError:
+                dryad_targets = None
         else:
             dryad_targets = None
+        if REQUIRE_FRET:
+            try:
+                fret_targets = _load_fret_targets()
+            except FileNotFoundError:
+                fret_targets = None
+        else:
+            fret_targets = None
 
         for s in seeds:
             env = dict(**__import__("os").environ)
@@ -511,11 +714,19 @@ def evaluate(code_path, results_path):
             local_conn = ELEGANS_INPUT_DIR / "connectome.xlsx"
             if local_conn.exists():
                 env["CE_CONNECTOME_PATH"] = str(local_conn)
+            # Pass neuroml path for 3D neuron positions
+            local_neuroml = ELEGANS_INPUT_DIR / "data" / "openworm_neuroml" / "CElegans.net.nml"
+            if local_neuroml.exists():
+                env["CE_NEUROML_PATH"] = str(local_neuroml)
+            # Pass atlas dir for any other data lookups
+            local_data = ELEGANS_INPUT_DIR / "data"
+            if local_data.exists():
+                env["CE_ATLAS_DIR"] = str(local_data)
             r = subprocess.run(
                 [sys.executable, code_path],
                 capture_output=True,
                 text=True,
-                timeout=60,
+                timeout=eval_timeout,
                 env=env,
             )
             if r.returncode != 0:
@@ -579,9 +790,33 @@ def evaluate(code_path, results_path):
                 + 0.3 * _norm_rmse(cand["curv_std"], dryad_targets["curv_std"])
                 + 0.2 * _norm_rmse(cand["curv_psd"], dryad_targets["curv_psd"])
             )
-            behavior_loss = 0.6 * behavior_loss + 0.4 * dryad_loss
         else:
             dryad_loss = None
+
+        # FRET curvature loss (if available)
+        if fret_targets is not None:
+            fret_loss = (
+                0.5 * _norm_rmse(cand["curv_mean"], fret_targets["curv_mean"], scale=fret_targets["curv_std"])
+                + 0.3 * _norm_rmse(cand["curv_std"], fret_targets["curv_std"])
+                + 0.2 * _norm_rmse(cand["curv_psd"], fret_targets["curv_psd"])
+            )
+            if not np.isfinite(fret_loss):
+                fret_loss = None
+        else:
+            fret_loss = None
+
+        # Track loss (if available)
+
+        # Combine behavior losses (balanced across sources)
+        behavior_components = [behavior_loss]
+        weights = [1.0]
+        if dryad_loss is not None:
+            behavior_components.append(dryad_loss)
+            weights.append(1.0)
+        if fret_loss is not None:
+            behavior_components.append(fret_loss)
+            weights.append(1.0)
+        behavior_combined = float(np.average(behavior_components, weights=weights))
 
         # Neural loss
         neural_loss = (
@@ -592,7 +827,7 @@ def evaluate(code_path, results_path):
 
         consistency_penalty = cand["consistency"]
 
-        total_loss = behavior_loss + neural_loss + 0.1 * consistency_penalty
+        total_loss = 0.5 * behavior_combined + 0.5 * neural_loss + 0.1 * consistency_penalty
         # Convert loss to a positive fitness in (0, 1]; higher is better.
         fitness = 1.0 / (1.0 + total_loss)
 
@@ -612,10 +847,11 @@ def evaluate(code_path, results_path):
         payload = {
             "fitness": float(fitness),
             "total_loss": float(total_loss),
-            "behavior_loss": float(behavior_loss),
+            "behavior_loss": float(behavior_combined),
             "neural_loss": float(neural_loss),
             "consistency_penalty": float(consistency_penalty),
             "dryad_loss": float(dryad_loss) if dryad_loss is not None else None,
+            "fret_loss": float(fret_loss) if fret_loss is not None else None,
             "expected": exp,
             "last_output_summary": last_summary,
         }

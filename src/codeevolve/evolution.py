@@ -15,6 +15,9 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from uuid import uuid4
 import logging
 from pathlib import Path
+import os
+import shlex
+import subprocess
 import yaml
 import numpy as np
 
@@ -34,6 +37,43 @@ from codeevolve.utils.logging_utils import get_logger
 from codeevolve.utils.ckpt_utils import save_ckpt, load_ckpt
 
 MAX_LOG_MSG_SZ: int = 256
+
+
+def _run_post_ckpt_cmd(
+    cmd: Union[str, List[str]],
+    cwd: Optional[str],
+    logger: logging.Logger,
+) -> None:
+    if cmd is None:
+        return
+    cmd_list: List[str]
+    if isinstance(cmd, str):
+        cmd_list = shlex.split(cmd)
+    else:
+        cmd_list = [str(x) for x in cmd if str(x)]
+    if not cmd_list:
+        return
+
+    try:
+        result = subprocess.run(
+            cmd_list,
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            logger.warning(
+                f"Post-checkpoint command failed (rc={result.returncode}): {cmd_list}"
+            )
+            if result.stdout:
+                logger.warning(f"Post-checkpoint stdout (tail): {result.stdout[-2000:]}")
+            if result.stderr:
+                logger.warning(f"Post-checkpoint stderr (tail): {result.stderr[-2000:]}")
+        else:
+            logger.info(f"Post-checkpoint command finished: {cmd_list}")
+    except Exception as err:
+        logger.warning(f"Post-checkpoint command error: {err}")
 
 
 def select_parents(
@@ -749,6 +789,18 @@ async def codeevolve_loop(
                 ckpt_dir=args["ckpt_dir"],
                 logger=logger,
             )
+            post_cmd = config.get("POST_CKPT_CMD") or os.environ.get("CODEEVOLVE_POST_CKPT_CMD")
+            post_cwd = config.get("POST_CKPT_CWD") or os.environ.get("CODEEVOLVE_POST_CKPT_CWD")
+            try:
+                post_island = int(config.get("POST_CKPT_ISLAND", 0))
+            except (TypeError, ValueError):
+                post_island = 0
+
+            if post_cmd:
+                logger.info("Waiting for all islands to finish checkpoint save...")
+                global_data.barrier.wait()
+                if isl_data.id == post_island:
+                    _run_post_ckpt_cmd(post_cmd, post_cwd, logger)
 
         # EARLY STOPPING
         logger.info("=== GLOBAL EARLY STOPPING CHECK STEP ===")
