@@ -10,10 +10,15 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Dict, Optional
+from typing import Dict, Optional, Type
 from abc import ABC, abstractmethod
 
 import numpy as np
+
+
+# ---------------------------------------------------------------------------
+# Scheduler classes
+# ---------------------------------------------------------------------------
 
 
 class ExplorationRateScheduler(ABC):
@@ -264,44 +269,60 @@ class PlateauScheduler(ExplorationRateScheduler):
 
 
 class CosineScheduler(ExplorationRateScheduler):
-    """Cosine annealing scheduler that oscillates exploration rate periodically.
-    
-    This scheduler uses a cosine wave to smoothly vary the exploration rate
-    between min_rate and max_rate over a fixed cycle length, allowing for
-    periodic transitions between exploration and exploitation.
-    
+    """Cosine annealing scheduler that cycles exploration rate between bounds.
+
+    The exploration rate follows a cosine curve, smoothly transitioning between
+    max_rate and min_rate over a configurable cycle length. This creates periodic
+    phases of high exploration followed by exploitation.
+
     Attributes:
-        cycle_length: Number of epochs for one complete cosine cycle.
+        cycle_length: Number of epochs per complete cosine cycle.
     """
 
     def __init__(
         self, exploration_rate: float, max_rate: float, min_rate: float, cycle_length: int
     ):
         """Initialize the cosine annealing scheduler.
-        
+
         Args:
             exploration_rate: Initial exploration rate.
             max_rate: Maximum exploration rate bound.
             min_rate: Minimum exploration rate bound.
-            cycle_length: Number of epochs per complete cosine cycle.
-            
+            cycle_length: Number of epochs for one complete cycle.
+
         Raises:
             ValueError: If cycle_length is not positive.
         """
         super().__init__(exploration_rate, max_rate, min_rate)
         if cycle_length <= 0:
             raise ValueError(f"cycle_length ({cycle_length}) must be positive")
-        self.cycle_length = cycle_length
+        self.cycle_length: int = cycle_length
+
+    def __repr__(self) -> str:
+        """Returns a string representation of the CosineScheduler instance.
+
+        Returns:
+            A formatted string showing the scheduler's configuration.
+        """
+        return (
+            f"{self.__class__.__name__}"
+            "("
+            f"exploration_rate={self.exploration_rate},"
+            f"min_rate={self.min_rate},"
+            f"max_rate={self.max_rate},"
+            f"cycle_length={self.cycle_length}"
+            ")"
+        )
 
     def __call__(self, epoch: int, **kwargs) -> float:
         """Compute exploration rate using cosine annealing.
-        
+
         Args:
-            epoch: Current epoch number.
+            epoch: Current epoch number (0-indexed).
             **kwargs: Additional arguments (ignored).
-            
+
         Returns:
-            Updated exploration rate following cosine wave.
+            Updated exploration rate following cosine curve.
         """
         cycle_progress: float = (epoch % self.cycle_length) / self.cycle_length
         cosine_factor: float = 0.5 * (1 + np.cos(np.pi * cycle_progress))
@@ -311,7 +332,11 @@ class CosineScheduler(ExplorationRateScheduler):
         return self.exploration_rate
 
 
-SCHEDULER_TYPES: Dict[str, ExplorationRateScheduler] = {
+# ---------------------------------------------------------------------------
+# Registry
+# ---------------------------------------------------------------------------
+
+SCHEDULER_TYPES: Dict[str, Type[ExplorationRateScheduler]] = {
     "ExponentialDecayScheduler": ExponentialDecayScheduler,
     "PlateauScheduler": PlateauScheduler,
     "CosineScheduler": CosineScheduler,

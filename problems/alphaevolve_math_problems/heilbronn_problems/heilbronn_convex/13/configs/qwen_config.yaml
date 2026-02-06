@@ -33,17 +33,17 @@ SYS_MSG: |
   - **Error handling**: Graceful handling of optimization failures or infeasible configurations
 
   COMPUTATIONAL BUDGET:
-  - **Time limit**: 90 seconds maximum execution time
-  - **Memory limit**: 5 GB
+  - **Time limit**: 180 seconds maximum execution time
+  - **Memory limit**: 1 GB
 
   # PROMPT-BLOCK-END
       
 CODEBASE_PATH: 'src/'
 INIT_FILE_DATA: {filename: 'init_program.py', language: 'python'}
 EVAL_FILE_NAME: 'evaluate.py'
-EVAL_TIMEOUT: 90
+EVAL_TIMEOUT: 180
 
-MAX_MEM_BYTES: 5000000000
+MAX_MEM_BYTES: 1000000000
 MEM_CHECK_INTERVAL_S: 0.1
 
 EVOLVE_CONFIG: {fitness_key: 'benchmark_ratio',
@@ -68,9 +68,12 @@ SAMPLER_AUX_LM : {model_name: 'AWS_QWEN-QWEN3-CODER-30B-INSTRUCT', temp: 0.7, to
 
 EMBEDDING: {model_name: 'AZURE_TEXT-EMBEDDING-3-SMALL', retries: 3, verify_ssl: False, dimensions: 128}
 
-MAP_ELITES: {elite_map_type: 'grid',
+MAP_ELITES: {elite_map_type: 'cvt',
              features: [
-              {name: 'benchmark_ratio', min_val: 0, max_val: 1.2, num_bins: 100},
-              {name: 'eval_time', min_val: 0, max_val: 90, num_bins: 20},
-             ]
+              {name: 'benchmark_ratio', min_val: 0, max_val: 1.1},
+              {name: 'eval_time', min_val: 0, max_val: 180},
+             ],
+             elite_map_kwargs: {
+              num_centroids: 40, num_init_samples: 1000, max_iter: 300, tolerance: 0.0001
+             }
 }

@@ -10,25 +10,40 @@
 #
 # ===--------------------------------------------------------------------------------------===#
 
-from typing import Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple, Optional, Union
 from collections import deque
 
-from codeevolve.lm import OpenAILM
+from codeevolve.lm.openai import (
+    OpenAILM,
+    MockOpenAILM,
+    _create_lm_from_config,
+)
 from codeevolve.database import Program, ProgramDatabase
 from codeevolve.prompt.template import (
     PROG_TEMPLATE,
-    EVOLVE_PROG_TASK_TEMPLATE,
-    EVOLVE_PROG_WINSP_TASK_TEMPLATE,
-    EVOLVE_PROMPT_TASK_TEMPLATE,
-    EVOLVE_PROMPT_TEMPLATE,
     EVOLVE_PROG_TEMPLATE,
     INSP_PROG_TEMPLATE,
-    EXPLORE_PROG_TASK_TEMPLATE,
-    EXPLORE_PROG_WINSP_TASK_TEMPLATE,
+    EVOLVE_PROMPT_TEMPLATE,
+    get_evolve_task_template,
+    get_evolve_with_inspirations_task_template,
+    get_explore_task_template,
+    get_explore_with_inspirations_task_template,
+    get_evolve_prompt_task_template,
+)
+from codeevolve.utils.constants import (
+    DEFAULT_EVOLVE_START_MARKER,
+    DEFAULT_EVOLVE_END_MARKER,
+    DEFAULT_PROMPT_START_MARKER,
+    DEFAULT_PROMPT_END_MARKER,
 )
 
 
-def format_prog_msg(prog: Program):
+# ---------------------------------------------------------------------------
+# Utilities
+# ---------------------------------------------------------------------------
+
+
+def format_prog_msg(prog: Program) -> str:
     """Formats a program's execution results into a standardized message string.
 
     This function creates a formatted message containing the program's code,
@@ -56,22 +71,67 @@ def format_prog_msg(prog: Program):
     )
 
 
+# ---------------------------------------------------------------------------
+# Prompt sampler
+# ---------------------------------------------------------------------------
+
+
 class PromptSampler:
     """Builds conversation prompts for evolutionary program generation.
 
     This class constructs prompts for language models by creating conversation
     histories from program lineages and incorporating inspiration programs.
     It supports both program evolution and meta-prompt evolution.
+
+    Supports mock models for debugging: set model_name to "MOCK" (or any name
+    starting with "MOCK") in the configuration to use a MockOpenAILM that returns
+    identity SEARCH/REPLACE operations without making API requests.
+
+    Attributes:
+        aux_lm_cfg: Configuration dictionary for the auxiliary language model.
+        aux_lm: The auxiliary language model instance.
+        evolve_start_marker: Marker indicating the start of an evolve block.
+        evolve_end_marker: Marker indicating the end of an evolve block.
+        prompt_start_marker: Marker indicating the start of a prompt block.
+        prompt_end_marker: Marker indicating the end of a prompt block.
     """
 
-    def __init__(self, aux_lm: OpenAILM):
-        """Initializes the prompt sampler with an auxiliary language model.
+    def __init__(
+        self,
+        aux_lm_cfg: Dict[str, Any],
+        api_key: str,
+        api_base: str,
+        evolve_start_marker: str = DEFAULT_EVOLVE_START_MARKER,
+        evolve_end_marker: str = DEFAULT_EVOLVE_END_MARKER,
+        prompt_start_marker: str = DEFAULT_PROMPT_START_MARKER,
+        prompt_end_marker: str = DEFAULT_PROMPT_END_MARKER,
+    ):
+        """Initializes the prompt sampler with an auxiliary language model configuration.
 
         Args:
-            aux_lm: OpenAI language model instance for meta-prompt generation.
+            aux_lm_cfg: Configuration dictionary for the auxiliary language model.
+                       To use a mock model, set model_name to "MOCK" or any
+                       name starting with "MOCK".
+            api_key: API key for authentication.
+            api_base: Base URL for the API endpoint.
+            evolve_start_marker: Marker indicating the start of an evolve block.
+            evolve_end_marker: Marker indicating the end of an evolve block.
+            prompt_start_marker: Marker indicating the start of a prompt block.
+            prompt_end_marker: Marker indicating the end of a prompt block.
         """
+        self.aux_lm_cfg: Dict[str, Any] = aux_lm_cfg
+        self.aux_lm: Union[OpenAILM, MockOpenAILM] = _create_lm_from_config(
+            model_cfg=aux_lm_cfg,
+            api_key=api_key,
+            api_base=api_base,
+        )
 
-        self.aux_lm: OpenAILM = aux_lm
+        self.evolve_start_marker: str = evolve_start_marker
+        self.evolve_end_marker: str = evolve_end_marker
+        self.prompt_start_marker: str = prompt_start_marker
+        self.prompt_end_marker: str = prompt_end_marker
+
+        self.configure_mocks(prompt_start_marker, prompt_end_marker)
 
     def __repr__(self) -> str:
         """Returns a string representation of the PromptSampler.
@@ -80,6 +140,20 @@ class PromptSampler:
             A formatted string showing the auxiliary language model configuration.
         """
         return f"{self.__class__.__name__}(aux_lm={self.aux_lm})"
+
+    def configure_mocks(self, start_marker: str, end_marker: str) -> None:
+        """Configures evolve block markers for the auxiliary LM if it's a mock.
+
+        This method should be called after creating the sampler to set the
+        correct markers from evolve_config. Only affects MockOpenAILM instances.
+
+        Args:
+            start_marker: The marker indicating the start of an evolve block.
+            end_marker: The marker indicating the end of an evolve block.
+        """
+        if isinstance(self.aux_lm, MockOpenAILM):
+            self.aux_lm.start_marker = start_marker
+            self.aux_lm.end_marker = end_marker
 
     async def meta_prompt(self, prompt: Program, prog: Program) -> Tuple[str, int, int]:
         """Generates an evolved prompt using meta-prompting.
@@ -98,8 +172,12 @@ class PromptSampler:
                 - Number of prompt tokens used
                 - Number of completion tokens used
         """
+        evolve_prompt_task = get_evolve_prompt_task_template(
+            self.prompt_start_marker, self.prompt_end_marker
+        )
+
         messages: List[Dict[str, str]] = [
-            {"role": "system", "content": EVOLVE_PROMPT_TASK_TEMPLATE},
+            {"role": "system", "content": evolve_prompt_task},
             {
                 "role": "user",
                 "content": EVOLVE_PROMPT_TEMPLATE.format(prompt=prompt.code, program=prog.prog_msg),
@@ -133,6 +211,7 @@ class PromptSampler:
             inspirations: Optional list of programs to include as inspiration examples.
             max_chat_depth: Maximum depth to trace back in the conversation history.
                            If None, traces back to the root program.
+            exploitation: If True, use exploitation templates; if False, use exploration templates.
 
         Returns:
             A list of message dictionaries following the OpenAI chat format,
@@ -140,7 +219,7 @@ class PromptSampler:
         """
         messages: deque[Dict[str, str]] = deque()
 
-        # recover chat
+        # Recover chat history
         curr_pid: str = prog.id
         curr_depth: int = 0
         while db.programs[curr_pid].parent_id is not None and (
@@ -164,21 +243,32 @@ class PromptSampler:
         )
         messages.appendleft({"role": "system", "content": prompt.code})
 
-        # inspirations
+        task_template: str
         if inspirations and len(inspirations):
             insp_str: str = ""
             for i, inspiration in enumerate(inspirations):
                 insp_str += INSP_PROG_TEMPLATE.format(counter=i + 1, program=inspiration.prog_msg)
 
             messages[-1]["content"] = insp_str + messages[-1]["content"]
-            messages[0]["content"] += (
-                EVOLVE_PROG_WINSP_TASK_TEMPLATE
-                if exploitation
-                else EXPLORE_PROG_WINSP_TASK_TEMPLATE
-            )
+
+            if exploitation:
+                task_template = get_evolve_with_inspirations_task_template(
+                    self.evolve_start_marker, self.evolve_end_marker
+                )
+            else:
+                task_template = get_explore_with_inspirations_task_template(
+                    self.evolve_start_marker, self.evolve_end_marker
+                )
         else:
-            messages[0]["content"] += (
-                EVOLVE_PROG_TASK_TEMPLATE if exploitation else EXPLORE_PROG_TASK_TEMPLATE
-            )
+            if exploitation:
+                task_template = get_evolve_task_template(
+                    self.evolve_start_marker, self.evolve_end_marker
+                )
+            else:
+                task_template = get_explore_task_template(
+                    self.evolve_start_marker, self.evolve_end_marker
+                )
+
+        messages[0]["content"] += task_template
 
         return list(messages)

@@ -3,7 +3,7 @@
 
 <img src="assets/codeevolve_logo.png" alt="CodeEvolve Logo" width="400">
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.2.1-green" alt="v0.2.1"></a>
+  <img src="https://img.shields.io/badge/version-v0.3-green" alt="v0.3"></a>
   <a href="https://arxiv.org/abs/2510.14150"><img src="https://img.shields.io/badge/arxiv-2510.14150-red" alt="Arxiv"></a>
   <a href="https://github.com/inter-co/science-codeevolve/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="License"></a>
 </p>
@@ -115,7 +115,7 @@ The exploration rate is controlled by a scheduler (e.g., exponential decay) and 
 └────┬────┘     └────┬────┘     └────┬────┘
      │               │               │
      └───────────────┴───────────────┘
-        Periodic Migration (Ring Topology)
+        Periodic Migration
         
 Each island maintains:
 - Solution population
@@ -123,44 +123,67 @@ Each island maintains:
 - Local fitness rankings
 - Migration history
 ```
-
 ### Core Components
 
-#### Program Database (`database.py`)
-- Manages populations with genealogical tracking
-- Implements selection strategies: random, tournament, roulette, best
-- Optional MAP-Elites integration (Grid or CVT-based)
-- Automatic population size management
+#### CLI Entry Point (`cli.py`)
+- Parses command-line arguments and orchestrates execution flow
+- Validates environment, paths, and configuration
+- Creates shared memory and synchronization primitives
+- Coordinates island spawning, monitoring, and shutdown
+
+#### Process Runner (`runner.py`)
+- **Process Management**: Spawns and monitors island processes
+- **Signal Handling**: Handles SIGTERM, SIGTSTP, SIGQUIT
+- **Failure Recovery**: Detects crashed islands and terminates remaining processes
+- **Log Daemon**: Manages centralized logging process
 
 #### Evolution Engine (`evolution.py`)
-- Main evolutionary loop coordinating all components
-- Handles parent selection, variation, and evaluation
-- Manages exploration/exploitation scheduling
-- Checkpoint creation and restoration
+- **Modular Design**: Main loop decomposed into specialized helper functions for selection, meta-prompting, code generation, evaluation, and migration
+- Coordinates exploration/exploitation scheduling with adaptive rates
+- Handles checkpoint creation and restoration with state consistency
 
-#### Islands Coordinator (`islands.py`)
-- Distributed execution with multiprocessing
-- Synchronous or asynchronous migration
-- Shared global best tracking
-- Coordinated early stopping
+#### Program Database (`database.py`)
+- Manages populations with genealogical tracking and fitness rankings
+- Implements multiple selection strategies
+- Implements the MAP-Elites algorithm for improved diversity, with Classic grid-based archive and Central Voronoi Tesselations variant
 
-#### LLM Interface (`lm.py`)
-- OpenAI-compatible API wrapper
-- Ensemble with weighted random selection
-- Automatic retry with exponential backoff
-- Embedding generation support
-
-#### Prompt Sampler (`prompt/sampler.py`)
-- Builds conversation histories from program lineages
-- Incorporates inspiration programs for crossover
-- Meta-prompting for prompt evolution
-- Dynamic depth control
+#### Exploration Schedulers (`scheduler.py`)
+- **ExponentialDecayScheduler**: Reduces exploration rate over epochs
+- **PlateauScheduler**: Adapts rate based on fitness improvements
+- **CosineScheduler**: Cycles exploration rate using cosine annealing
 
 #### Evaluator (`evaluator.py`)
-- Sandboxed program execution
-- Memory and timeout monitoring
-- Process tree management
-- Metrics extraction from JSON results
+- Sandboxed program execution with resource limits (time, memory)
+- Multi-threaded memory monitoring with process tree management
+- Isolated execution in temporary directories
+- Structured metrics extraction from JSON results
+
+#### Islands Coordinator (`islands/`)
+- **Synchronization** (`sync.py`): Barriers, locks, and shared state for distributed coordination
+- **Communication Graph** (`graph.py`): Flexible topologies (ring, star, complete, etc.)
+- **Migration Logic** (`migration.py`): Threaded send/receive with barrier synchronization
+
+#### LLM Interface (`lm/`)
+- **Abstract Base Classes** (`base.py`): Clean interface for plugging in different LLM providers
+- **OpenAI Wrapper** (`openai.py`): Async client with retry logic and ensemble support
+- **Mock Models**: Set model_name to "MOCK" for debugging without API calls
+- **Ensemble Support**: Weighted random selection from multiple models
+- Embedding generation support for semantic search (optional)
+
+#### Prompt Sampler (`prompt/`)
+- **Sampler** (`sampler.py`): Builds conversation histories from program lineages for context-aware generation
+- **Templates** (`template.py`): Predefined prompt templates for evolution and meta-prompting
+- Incorporates inspiration programs for crossover operations
+- **Meta-prompting**: Evolves the system prompts themselves for adaptive search
+- Dynamic depth control for managing context length
+
+#### Utilities (`utils/`)
+- **Constants** (`constants.py`): Centralized magic constants (markers, file names, defaults)
+- **Checkpointing** (`ckpt.py`): Save and load algorithm state
+- **Configuration** (`cli_setup.py`): Validation, loading, and island argument setup
+- **Parsing** (`parsing.py`): SEARCH/REPLACE diff application
+- **Logging** (`logging.py`): Distributed logging with real-time CLI dashboard
+- **Locking** (`lock.py`): Directory-level locks to prevent concurrent runs
 
 ## Performance Highlights
 
@@ -463,7 +486,7 @@ Optional:
 output_directory/
 ├── config.yaml              # Copy of configuration used
 ├── 0/                       # Island 0 results
-│   ├── results.log          # Detailed execution log
+│   ├── island.log          # Detailed execution log
 │   ├── best_sol.py          # Best solution found
 │   ├── best_prompt.txt      # Best prompt evolved
 │   └── ckpt/                # Checkpoints
@@ -479,8 +502,9 @@ output_directory/
 
 We organize the different versions of CodeEvolve as releases in both this repository and its companion experiments repository. Currently, we have the following releases:
 
-1. **v0.1.0**: Initial version of CodeEvolve, corresponds to v1 of of CodeEvolve's [paper](https://arxiv.org/abs/2510.14150).
-2. **v0.2.0** / **v0.2.1**: Most recent release, corresponds to v3 of of CodeEvolve's [paper](https://arxiv.org/abs/2510.14150) with minor bug fixes.
+1. **v0.1.0**: Initial version of CodeEvolve, corresponds to v1 of CodeEvolve's [paper](https://arxiv.org/abs/2510.14150).
+2. **v0.2.0** / **v0.2.1**: Corresponds to v3 of CodeEvolve's [paper](https://arxiv.org/abs/2510.14150) with minor bug fixes.
+3. **v0.3.0**: Most recent release, with major quality of life improvements and code refactoring.
 
 ## Contributing
 
