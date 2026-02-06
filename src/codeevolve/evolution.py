@@ -39,6 +39,35 @@ from codeevolve.utils.ckpt_utils import save_ckpt, load_ckpt
 MAX_LOG_MSG_SZ: int = 256
 
 
+def _coerce_metric_value(value: Any) -> Optional[float]:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _get_metric_value(metrics: Dict[str, Any], key: str) -> Optional[float]:
+    if not metrics or not key:
+        return None
+
+    if key in metrics:
+        return _coerce_metric_value(metrics[key])
+
+    upper = key.upper()
+    if upper in metrics:
+        return _coerce_metric_value(metrics[upper])
+
+    lower = key.lower()
+    if lower in metrics:
+        return _coerce_metric_value(metrics[lower])
+
+    for m_key, m_val in metrics.items():
+        if str(m_key).lower() == lower:
+            return _coerce_metric_value(m_val)
+
+    return None
+
+
 def _run_post_ckpt_cmd(
     cmd: Optional[Union[str, List[str]]],
     cwd: Optional[str],
@@ -473,7 +502,14 @@ async def evaluate_and_store(
     child_sol.returncode, _, _, child_sol.error, child_sol.eval_metrics = evaluator.execute(
         child_sol
     )
-    child_sol.fitness = child_sol.eval_metrics.get(evolve_config["fitness_key"], 0)
+    fitness_key = evolve_config["fitness_key"]
+    fitness_val = _get_metric_value(child_sol.eval_metrics, fitness_key)
+    if child_sol.returncode == 0 and fitness_val is None:
+        logger.warning(
+            f"Fitness key '{fitness_key}' not found in eval_metrics. "
+            f"Available keys: {list(child_sol.eval_metrics.keys())}"
+        )
+    child_sol.fitness = fitness_val if fitness_val is not None else 0.0
 
     logger.info(f"Child solution -> {child_sol}.")
 
@@ -1037,7 +1073,15 @@ async def codeevolve(args: Dict[str, Any], isl_data: IslandData, global_data: Gl
             init_sol
         )
         if init_sol.returncode == 0:
-            init_sol.fitness = init_sol.eval_metrics[evolve_config["fitness_key"]]
+            fitness_key = evolve_config["fitness_key"]
+            fitness_val = _get_metric_value(init_sol.eval_metrics, fitness_key)
+            if fitness_val is None:
+                logger.warning(
+                    f"Fitness key '{fitness_key}' not found in init eval_metrics. "
+                    f"Available keys: {list(init_sol.eval_metrics.keys())}"
+                )
+            else:
+                init_sol.fitness = fitness_val
         init_sol.prog_msg = format_prog_msg(prog=init_sol)
         init_sol.features = init_sol.eval_metrics
         sol_db.add(init_sol)

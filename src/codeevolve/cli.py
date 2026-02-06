@@ -282,6 +282,8 @@ def create_global_data(num_islands: int) -> GlobalData:
         fitness=mp.Value(ctypes.c_longdouble, 0, lock=False),
         iteration_found=mp.Value(ctypes.c_uint, 0, lock=False),
         island_found=mp.Value(ctypes.c_int, -1, lock=False),
+        depth=mp.Value(ctypes.c_uint, 0, lock=False),
+        eval_metrics=mp.Manager().dict(),
     )
 
     return GlobalData(
@@ -291,6 +293,9 @@ def create_global_data(num_islands: int) -> GlobalData:
         lock=mp.Lock(),
         barrier=mp.Barrier(parties=num_islands),
         log_queue=mp.Queue(),
+        start_time=mp.Value(ctypes.c_double, 0, lock=False),
+        elapsed_time_offset=mp.Value(ctypes.c_double, 0, lock=False),
+        cpu_count=mp.Value(ctypes.c_int, 0, lock=False),
     )
 
 

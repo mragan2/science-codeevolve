@@ -38,7 +38,9 @@ SYS_MSG: |
   - JEDNA zmiana strukturalna LUB 2-3 powiazane poprawki na mutacje
 
   OBECNE METRYKI (do pokonania):
-  - combined_score ~ 0.40, chi2_total ~ 1.52
+  - combined_score ~ 0.66, chi2_total ~ 0.38, dip_score ~ 0.018
+  - S_TT(2..15) ~ 0.90, potrzeba ratio -> 1.0 przez fizyke ODE
+  - Asymptotic score ~ 0.37 (wymaga lepszego odzyskiwania przy wysokich ell)
 
   graviton / tensor / torsion / bounce / ODE / RK4 / ECSK
   # PROMPT-BLOCK-END

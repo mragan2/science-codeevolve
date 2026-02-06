@@ -115,14 +115,27 @@ def evaluate(candidate_path: str) -> dict:
     asymptotic_score = math.exp(-10.0 * asymp_dev)
 
     # ------------------------------------------------------------------
+    # Variability check: penalize trivial constant solutions
+    # ------------------------------------------------------------------
+    tt_range = max(tt_vals) - min(tt_vals) if tt_vals else 0.0
+    ee_range = max(ee_vals) - min(ee_vals) if ee_vals else 0.0
+    # If all values are identical, the ODE is likely bypassed
+    variability_pen = 0.0
+    if tt_range < 1e-10 and ee_range < 1e-10 and chi2_total < 1e-10:
+        variability_pen = 0.05  # small nudge away from trivial solution
+
+    # ------------------------------------------------------------------
     # Combined score in [0, 1]
     # ------------------------------------------------------------------
     raw_score = -chi2_total + 0.5 * dip_score - 0.1 * smooth_pen
     # Transform: higher is better, mapped to [0, 1]
     combined_score = 1.0 / (1.0 + max(0.0, chi2_total))
-    # Bonus for dip structure and smoothness
-    combined_score = min(1.0, combined_score + 0.05 * dip_score)
-    combined_score = max(0.0, combined_score)
+    # Bonus for dip structure (stronger weight to reward torsion feature)
+    combined_score = min(1.0, combined_score + 0.15 * dip_score)
+    # Blend in asymptotic recovery and subtract variability penalty
+    combined_score = combined_score * (0.85 + 0.15 * asymptotic_score)
+    combined_score = max(0.0, combined_score - variability_pen)
+    combined_score = min(1.0, combined_score)
 
     return {
         "combined_score": combined_score,
