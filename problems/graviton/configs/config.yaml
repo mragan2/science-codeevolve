@@ -4,10 +4,25 @@ SYS_MSG: |
   Rozwiazujesz ODE tensorowe h'' + 2*H_conf*h' + omega^2*h = 0
   i mapujesz rozwiazanie na funkcje transferowe S_TT, S_EE, S_TE.
 
-  Fitness = combined_score (0-1), oparty na:
-  - Odchylenie chi^2 od jednosci: S(ell) -> 1.0 dla ell=2..15
-  - Bonus za strukture dipu przy ell ~ 22 (efekt rezonansu torsyjnego)
-  - Kara za niesmiale oscylacje (gladkosc)
+  OCENA wzgledem PRAWDZIWYCH danych Planck 2018 (ell=2..29):
+  - pred_TT(ell) = LCDM_TT[ell] * S_TT(ell)  musi pasowac do Planck_TT[ell]
+  - chi2 = sum((Planck - pred)^2 / sigma^2) porownywany z chi2_LCDM
+  - BIC = chi2 + n_params * ln(N_data) -- kara za nadmiar parametrow
+  - delta_BIC < 0 oznacza ze model jest LEPSZY niz LCDM
+
+  KLUCZOWE CELE FIZYCZNE:
+  - S_TT(2) ~ 0.196 (supresja kwadrupolu: Planck 201 uK^2 vs LCDM 1023 uK^2)
+  - S_TT(ell > 20) -> 1.0 (odzyskanie standardowej kosmologii)
+  - S_EE ~ S_TT^(2/3) (predykcja ECSK dla sprzezenia torsja-spin-2)
+  - Gladki, monotonicznie rosnacy profil S_TT od ell=2 do ~15
+
+  Fitness = 0.6 * bic_fitness + 0.4 * physics_score
+  physics_score = (quadrupole * asymptotic * monotonicity * smoothness * ee_tt_correlation)^(1/5)
+
+  AKTYWNOSC TORSJI (wymog funkcjonalny, nie slownikowy):
+  - range(S_TT) > 0.15 w zakresie ell=2..29
+  - S_TT(2) < 0.5
+  - Naruszenie = cap na 0.10
 
   SYGNATURY FUNKCJI (nie zmieniac):
   - get_torsion_params() -> dict   (preferuj {} bez wolnych parametrow)
@@ -22,27 +37,28 @@ SYS_MSG: |
   4. Nie dodawaj nowych linii "import"
 
   KOMPONENTY DO EWOLUCJI:
-  - Pi(eta, k): potencjal wlasno-energii torsyjnej (rezonans, odbicie, tlumienie)
+  - Pi(eta, k): potencjal wlasno-energii torsyjnej (silny przy niskim k, slaby przy wysokim)
   - omega^2(eta, k): relacja dyspersji (k^2 + a^2*m_g^2 + Pi)
-  - m_g^2(eta): masa grawitona (moze byc zależna od czasu)
-  - a_of_eta(eta): czynnik skali tla kosmologicznego
+  - m_g^2(eta): masa grawitona (moze byc zalezna od czasu)
+  - a_of_eta(eta): czynnik skali tla kosmologicznego (bounce)
   - Mapowanie rozwiazania ODE na S_TT, S_EE, S_TE
 
   STRATEGIE:
-  - Modyfikuj potencjal Pi(eta, k) - kluczowy element fizyczny
-  - Dodaj nowe rezonansy, przejscia fazowe lub sprzezenia spinowe
-  - Zmien parametry solvera RK4 (krok, warunki poczatkowe, zakres eta)
-  - Zmien mapowanie solve_tensor -> S_TT/EE/TE (wspolczynniki, offsets)
+  - Modyfikuj potencjal Pi(eta, k) - kluczowy: silna supresja przy niskim k
+  - Dostosuj profil skalowy Pi tak by S_TT(2)~0.2 i S_TT(25)~1.0
   - Eksploruj rozne formy masy grawitona m_g^2(eta)
-  - Dodaj sprzezenie miedzy modami (TT wpływa na EE)
+  - Zmien warunki poczatkowe i zakres eta solvera RK4
+  - Zachowaj S_EE ~ S_TT^(2/3) dla dobrego correlation_score
   - JEDNA zmiana strukturalna LUB 2-3 powiazane poprawki na mutacje
 
   OBECNE METRYKI (do pokonania):
-  - combined_score ~ 0.66, chi2_total ~ 0.38, dip_score ~ 0.018
-  - S_TT(2..15) ~ 0.90, potrzeba ratio -> 1.0 przez fizyke ODE
-  - Asymptotic score ~ 0.37 (wymaga lepszego odzyskiwania przy wysokich ell)
+  - combined_score ~ 0.33, delta_bic ~ +221, quadrupole_score ~ 1.0
+  - S_TT(2) ~ 0.195, blisko celu 0.196 -- utrzymaj lub popraw
+  - Asymptotic score ~ 0.14 (wymaga lepszego S_TT -> 1.0 przy ell > 20)
+  - Physics score ~ 0.68 (srednia geometryczna 5 ograniczen)
+  - bic_fitness ~ 0.0 (chi2_tt=249, trzeba je drastycznie zredukowac)
 
-  graviton / tensor / torsion / bounce / ODE / RK4 / ECSK
+  graviton / tensor / torsion / bounce / ODE / RK4 / ECSK / Planck
   # PROMPT-BLOCK-END
 CODEBASE_PATH: src/
 INIT_FILE_DATA:
@@ -58,21 +74,21 @@ EVOLVE_CONFIG:
   num_epochs: 250
   ckpt: 10
   max_size: null
-  init_pop: 12
-  exploration_rate: 0.25
-  selection_policy: roulette
+  init_pop: 6
+  exploration_rate: 0.12
+  selection_policy: tournament
   selection_kwargs:
-    roulette_by_rank: true
-  early_stopping_rounds: 80
-  num_islands: 7
+    tournament_size: 5
+  early_stopping_rounds: 50
+  num_islands: 4
   migration_topology: ring
   migration_interval: 10
-  migration_rate: 0.2
-  meta_prompting: false
+  migration_rate: 0.1
+  meta_prompting: true
   use_embedding: true
   use_map_elites: true
-  num_inspirations: 3
-  max_chat_depth: 3
+  num_inspirations: 1
+  max_chat_depth: 2
   mp_start_marker: '# PROMPT-BLOCK-START'
   mp_end_marker: '# PROMPT-BLOCK-END'
   evolve_start_marker: '# EVOLVE-BLOCK-START'
@@ -80,17 +96,18 @@ EVOLVE_CONFIG:
   use_scheduler: true
   type: PlateauScheduler
   scheduler_kwargs:
-    min_rate: 0.2
-    max_rate: 0.5
-    plateau_threshold: 6
-    increase_factor: 1.1
-    decrease_factor: 0.92
+    min_rate: 0.12
+    max_rate: 0.3
+    plateau_threshold: 5
+    increase_factor: 1.05
+    decrease_factor: 0.9
 EXPLORATION_ENSEMBLE:
 - model_name: deepseek-v3.2:cloud
   temp: 0.75
   top_p: 0.92
   max_tok: 4096
   retries: 3
+  request_timeout_s: 240.0
   weight: 0.4
   verify_ssl: false
 - model_name: kimi-k2.5:cloud
@@ -98,6 +115,7 @@ EXPLORATION_ENSEMBLE:
   top_p: 0.9
   max_tok: 4096
   retries: 3
+  request_timeout_s: 240.0
   weight: 0.35
   verify_ssl: false
 - model_name: mistral-large-3:675b-cloud
@@ -105,50 +123,56 @@ EXPLORATION_ENSEMBLE:
   top_p: 0.9
   max_tok: 4096
   retries: 3
+  request_timeout_s: 240.0
   weight: 0.25
   verify_ssl: false
 EXPLOITATION_ENSEMBLE:
 - model_name: qwen3-coder:480b-cloud
-  temp: 0.22
-  top_p: 0.82
+  temp: 0.18
+  top_p: 0.8
   max_tok: 4096
   retries: 4
+  request_timeout_s: 240.0
   weight: 0.45
   verify_ssl: false
 - model_name: devstral-2:123b-cloud
-  temp: 0.24
-  top_p: 0.84
+  temp: 0.19
+  top_p: 0.8
   max_tok: 4096
   retries: 4
+  request_timeout_s: 240.0
   weight: 0.3
   verify_ssl: false
 - model_name: glm-4.7:cloud
-  temp: 0.26
-  top_p: 0.84
+  temp: 0.2
+  top_p: 0.8
   max_tok: 4096
   retries: 4
+  request_timeout_s: 240.0
   weight: 0.25
   verify_ssl: false
 SAMPLER_AUX_LM:
-  model_name: kimi-k2-thinking:cloud
+  model_name: gemini-3-flash-preview:latest
   temp: 0.18
   top_p: 0.78
   max_tok: 4096
   retries: 3
-  weight: 1
+  request_timeout_s: 240.0
+  weight: 1.0
   verify_ssl: false
 EMBEDDING:
   model_name: qwen3-embedding:4b
   retries: 3
+  request_timeout_s: 240.0
   verify_ssl: false
 MAP_ELITES:
   elite_map_type: grid
   features:
-  - name: chi2_total
+  - name: delta_bic
+    min_val: -80.0
+    max_val: 320.0
+    num_bins: 10
+  - name: quadrupole_score
     min_val: 0.0
-    max_val: 3.0
-    num_bins: 8
-  - name: dip_score
-    min_val: 0.0
-    max_val: 0.5
+    max_val: 1.0
     num_bins: 8

@@ -12,20 +12,26 @@ import math
 import os
 import pickle
 import queue
+import difflib
 import re
 import shlex
 import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
+import urllib.error
+import urllib.request
+import uuid
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from tkinter.scrolledtext import ScrolledText
 
 try:
@@ -87,17 +93,32 @@ SKIP_KEYS = frozenset({
 
 # Models tab constants
 _NONE_MODEL = "(none)"
-_LLM_FIELDS = ("model_name", "temp", "top_p", "max_tok", "retries", "weight", "verify_ssl")
+_LLM_FIELDS = (
+    "model_name",
+    "temp",
+    "top_p",
+    "max_tok",
+    "retries",
+    "request_timeout_s",
+    "weight",
+    "verify_ssl",
+)
 _LLM_DEFAULTS: dict[str, object] = {
     "model_name": _NONE_MODEL,
     "temp": 0.5,
     "top_p": 0.9,
     "max_tok": 4096,
     "retries": 3,
+    "request_timeout_s": 240.0,
     "weight": 0.33,
     "verify_ssl": False,
 }
-_EMBED_FIELDS = ("model_name", "retries", "verify_ssl")
+_EMBED_FIELDS = ("model_name", "retries", "request_timeout_s", "verify_ssl")
+
+RUN_SORT_OPTIONS = ("Activity", "Best Score", "Name")
+RUN_STATUS_OPTIONS = ("All", "LIVE", "WARM", "IDLE", "NEW")
+VIZ_VIEW_OPTIONS = ("Branching", "Performance", "List", "MAP-Elites")
+VIZ_HIGHLIGHT_OPTIONS = ("Top score", "Improvement", "Migration", "Recent")
 
 # ---- New-problem wizard templates ----
 _EVAL_TEMPLATE = '''\
@@ -145,7 +166,7 @@ import math
 
 
 def get_params():
-    return {{}}
+    return {}
 
 
 def compute(params):
@@ -336,8 +357,15 @@ cmd_tail() {{
   local run_id
   run_id="$(normalize_run "${{1:-}}")"
   local island="${{2:-0}}"
-  local log_path="${{EXP_DIR}}/${{run_id}}/${{island}}/results.log"
-  [[ -f "${{log_path}}" ]] || err "results.log not found: ${{log_path}}"
+  local log_dir="${{EXP_DIR}}/${{run_id}}/${{island}}"
+  local log_path=""
+  if [[ -f "${{log_dir}}/island.log" ]]; then
+    log_path="${{log_dir}}/island.log"
+  elif [[ -f "${{log_dir}}/results.log" ]]; then
+    log_path="${{log_dir}}/results.log"
+  else
+    err "No log found in ${{log_dir}} (checked island.log, results.log)"
+  fi
   tail -f "${{log_path}}"
 }}
 
@@ -469,6 +497,119 @@ _DEFAULT_EVOLVE_CONFIG: dict = {
 }
 
 
+_AI_TEMPLATE_MODEL_DEFAULT = "lfm2.5-thinking:1.2b"
+_AI_TRANSCRIBE_MODEL_DEFAULT = "gpt-4o-mini-transcribe"
+_AI_NEW_PROBLEM_SYSTEM_PROMPT = """\
+You generate starter files for CodeEvolve, an LLM-driven evolutionary algorithm.
+
+HOW CODEEVOLVE WORKS:
+- A population of Python programs (candidates) is evolved across parallel islands.
+- Each generation: parents are selected, an LLM mutates the code between EVOLVE-BLOCK \
+markers via SEARCH/REPLACE diffs, then the candidate is evaluated in a sandboxed \
+environment with resource limits (time, memory).
+- evaluate.py runs the candidate, computes metrics, and writes JSON with a "fitness" \
+score (float, 0-1, higher=better). Fitness drives selection.
+- init_program.py is the seed candidate that gets evolved. Only "import math" is \
+allowed. The LLM only modifies code between # EVOLVE-BLOCK-START / # EVOLVE-BLOCK-END.
+- sys_msg tells the mutator LLM what to optimize and what constraints to follow.
+
+Return a SINGLE JSON OBJECT (no markdown fences, no prose outside the JSON) with keys:
+  "suggested_problem_name", "evaluator_py", "init_program_py", "sys_msg"
+
+EVALUATOR (evaluate.py) REQUIREMENTS:
+- CLI interface: python evaluate.py <candidate.py> <results.json>
+- Must have: def evaluate(candidate_path: str) -> dict  and  def main() -> int
+- Use importlib.util to dynamically load the candidate module
+- Call candidate's compute() (or get_params()+compute(params)) to get its output
+- Compare output against target/ground truth to compute fitness
+- ALWAYS return {"fitness": <float>} even on errors (use 0.0 for failures)
+- Write the result dict to results.json via json.dump
+- Wrap ALL candidate calls in try/except to handle crashes gracefully
+
+INIT PROGRAM (init_program.py) REQUIREMENTS:
+- First line: import math  (the ONLY allowed import)
+- Evolvable code wrapped in: # EVOLVE-BLOCK-START ... # EVOLVE-BLOCK-END
+- Must define: get_params() returning a dict, compute(params) returning a value
+- Start with a naive/simple implementation - evolution will improve it
+
+SYS_MSG REQUIREMENTS:
+- Wrapped in: # PROMPT-BLOCK-START ... # PROMPT-BLOCK-END
+- Tell the LLM what the fitness measures and what to optimize
+- State constraints: only import math, ASCII only, no external libraries
+- Suggest strategies: tune get_params(), restructure compute(), etc.
+
+RULES:
+1) ASCII only. Code must be immediately runnable with just "import math".
+2) Output ONLY the JSON object - no explanation text before or after.
+"""
+
+_AI_EVAL_FORMAT_EXAMPLE = '''\
+"""
+Evaluator for sample_problem.
+Interface: python evaluate.py <candidate.py> <results.json>
+"""
+import importlib.util
+import json
+import math
+import sys
+
+
+def evaluate(candidate_path: str) -> dict:
+    spec = importlib.util.spec_from_file_location("candidate", candidate_path)
+    mod = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(mod)
+    except Exception as exc:
+        return {"fitness": 0.0, "error": f"import: {exc}"}
+
+    try:
+        value = float(mod.compute({"x": 2.0, "y": 3.0}))
+    except Exception as exc:
+        return {"fitness": 0.0, "error": f"compute: {exc}"}
+
+    target = 13.0
+    mae = abs(value - target)
+    fitness = 1.0 / (1.0 + mae)
+    return {"fitness": float(fitness), "value": float(value), "mae": float(mae)}
+
+
+def main() -> int:
+    if len(sys.argv) != 3:
+        print("Usage: python evaluate.py <candidate.py> <results.json>")
+        return 1
+    metrics = evaluate(sys.argv[1])
+    if "fitness" not in metrics:
+        metrics["fitness"] = 0.0
+    metrics["fitness"] = float(metrics["fitness"])
+    with open(sys.argv[2], "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'''
+
+_AI_INIT_FORMAT_EXAMPLE = '''\
+import math
+
+# EVOLVE-BLOCK-START
+
+
+def get_params():
+    return {"alpha": 1.0, "beta": 0.5}
+
+
+def compute(params):
+    x = float(params.get("alpha", 1.0))
+    y = float(params.get("beta", 0.5))
+    return x * x + 3.0 * y
+
+
+# EVOLVE-BLOCK-END
+'''
+
+
 def _apply_theme(root: tk.Tk) -> None:
     style = ttk.Style(root)
     style.theme_use("clam")
@@ -590,6 +731,44 @@ class VizNode:
     metric: float
     code: Optional[str] = None
     eval_metrics: Optional[dict] = None
+    metrics: Optional[dict[str, float]] = None
+    features: Optional[dict[str, float]] = None
+
+
+def _clamp01(x: float) -> float:
+    if x < 0.0:
+        return 0.0
+    if x > 1.0:
+        return 1.0
+    return x
+
+
+def _hex_to_rgb(color: str) -> tuple[int, int, int]:
+    c = color.lstrip("#")
+    if len(c) != 6:
+        return (0, 0, 0)
+    try:
+        return (int(c[0:2], 16), int(c[2:4], 16), int(c[4:6], 16))
+    except Exception:
+        return (0, 0, 0)
+
+
+def _rgb_to_hex(rgb: tuple[float, float, float]) -> str:
+    r = max(0, min(255, int(round(rgb[0]))))
+    g = max(0, min(255, int(round(rgb[1]))))
+    b = max(0, min(255, int(round(rgb[2]))))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _mix_color(a: str, b: str, t: float) -> str:
+    t = _clamp01(t)
+    ar, ag, ab = _hex_to_rgb(a)
+    br, bg, bb = _hex_to_rgb(b)
+    return _rgb_to_hex((
+        ar + (br - ar) * t,
+        ag + (bg - ag) * t,
+        ab + (bb - ab) * t,
+    ))
 
 
 def _find_repo_root(start: Path) -> Path:
@@ -655,33 +834,580 @@ def _open_path(path: Path) -> None:
         messagebox.showerror("Open Failed", f"Could not open:\n{path}\n\n{e}")
 
 
+def _island_log(island_dir: Path) -> Optional[Path]:
+    """Return the island log path, checking v0.3 name first then legacy."""
+    for name in ("island.log", "results.log"):
+        p = island_dir / name
+        if p.exists():
+            return p
+    return None
+
+
+_RE_FITNESS_VAL = re.compile(r"fitness=([\d.]+)")
+
+
 def _best_fitness_for_run(run_dir: Path, fitness_key: str = "combined_score") -> Optional[float]:
     """Scan island directories for the best fitness value."""
     best = None
     for island in run_dir.iterdir():
         if not island.is_dir():
             continue
-        log_path = island / "results.log"
-        if not log_path.exists():
+        log_path = _island_log(island)
+        if log_path is None:
             continue
         try:
-            last_line = ""
             with log_path.open("r", encoding="utf-8", errors="replace") as f:
                 for line in f:
-                    line = line.strip()
-                    if line:
-                        last_line = line
-            if not last_line:
-                continue
-            data = json.loads(last_line)
-            val = data.get(fitness_key)
-            if val is not None:
-                val = float(val)
-                if best is None or val > best:
-                    best = val
+                    m = _RE_FITNESS_VAL.search(line)
+                    if m:
+                        val = float(m.group(1))
+                        if best is None or val > best:
+                            best = val
         except Exception:
             continue
     return best
+
+
+def _run_last_log_mtime(run_dir: Path) -> Optional[float]:
+    """Return the newest island log mtime for a run."""
+    newest = None
+    for island in run_dir.iterdir():
+        if not island.is_dir():
+            continue
+        log_path = _island_log(island)
+        if log_path is None:
+            continue
+        try:
+            mtime = log_path.stat().st_mtime
+        except Exception:
+            continue
+        newest = mtime if newest is None or mtime > newest else newest
+    return newest
+
+
+def _sanitize_problem_name(raw: str, fallback: str = "my_problem") -> str:
+    text = re.sub(r"[^a-zA-Z0-9_]+", "_", (raw or "").strip().lower())
+    text = re.sub(r"_+", "_", text).strip("_")
+    if not text:
+        text = fallback
+    if text and text[0].isdigit():
+        text = f"p_{text}"
+    return text
+
+
+def _extract_json_object(text: str) -> dict[str, Any]:
+    raw = (text or "").strip()
+    if not raw:
+        raise ValueError("Empty response from model")
+    # Strip markdown code fences (```json ... ``` or ``` ... ```)
+    if raw.startswith("```"):
+        lines = raw.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        raw = "\n".join(lines).strip()
+    try:
+        data = json.loads(raw)
+    except Exception:
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start < 0 or end <= start:
+            raise ValueError("Model response did not contain JSON object")
+        data = json.loads(raw[start:end + 1])
+    if not isinstance(data, dict):
+        raise ValueError("Expected JSON object")
+    return data
+
+
+def _fallback_template_payload_from_text(text: str, name_hint: str) -> dict[str, Any]:
+    raw = (text or "").strip()
+    out: dict[str, Any] = {
+        "suggested_problem_name": _sanitize_problem_name(name_hint or "my_problem"),
+    }
+    if not raw:
+        return out
+
+    m = re.search(
+        r"(?:suggested_problem_name|problem_name|name)\s*[:=]\s*([A-Za-z0-9_ -]+)",
+        raw,
+        flags=re.IGNORECASE,
+    )
+    if m:
+        out["suggested_problem_name"] = _sanitize_problem_name(m.group(1).strip())
+
+    # Strategy: first extract marked blocks to separate the three files,
+    # then use code-fence segments only for parts not yet found.
+    # This prevents assigning the same blob to all three fields.
+
+    # 1) Extract marked blocks (most reliable separation)
+    sys_seg = ""
+    init_seg = ""
+    evaluator_seg = ""
+    remainder = raw
+
+    prompt_block, remainder = _extract_marked_block(
+        remainder, "# PROMPT-BLOCK-START", "# PROMPT-BLOCK-END"
+    )
+    if prompt_block:
+        sys_seg = prompt_block
+
+    evolve_block, remainder = _extract_marked_block(
+        remainder, "# EVOLVE-BLOCK-START", "# EVOLVE-BLOCK-END"
+    )
+    if evolve_block:
+        init_seg = evolve_block
+
+    # 2) Try code-fenced blocks for anything still missing
+    code_blocks = re.findall(r"```[^\n]*\n(.*?)```", raw, flags=re.DOTALL)
+    segments = [seg.strip() for seg in code_blocks if seg.strip()]
+
+    for seg in segments:
+        if not evaluator_seg and "def evaluate(" in seg and ("json.dump" in seg or "fitness" in seg):
+            # Only use this segment if it's distinct from init/sys
+            if not (init_seg and seg == init_seg) and not (sys_seg and seg == sys_seg):
+                evaluator_seg = seg
+        if not init_seg and ("def get_params(" in seg and "def compute(" in seg):
+            if not (evaluator_seg and seg == evaluator_seg):
+                init_seg = seg
+        if not sys_seg and "# PROMPT-BLOCK-START" in seg:
+            if not (evaluator_seg and seg == evaluator_seg):
+                sys_seg = seg
+
+    # 3) If evaluator not yet found, try to extract from remainder
+    #    (remainder has marked blocks removed, so it's likely just the evaluator)
+    if not evaluator_seg and remainder.strip():
+        rem = remainder.strip()
+        if "def evaluate(" in rem:
+            evaluator_seg = rem
+        elif "def get_params(" in rem and "def compute(" in rem and not init_seg:
+            # The "evaluator" section was actually init code
+            init_seg = rem
+
+    # 4) If init found without import math, add it
+    if init_seg and "import math" not in init_seg:
+        init_seg = "import math\n\n" + init_seg.lstrip()
+
+    if evaluator_seg:
+        out["evaluator_py"] = evaluator_seg
+    if init_seg:
+        out["init_program_py"] = init_seg
+    if sys_seg:
+        out["sys_msg"] = sys_seg
+    return out
+
+
+def _extract_chat_content(chat_payload: dict[str, Any]) -> str:
+    choices = chat_payload.get("choices")
+    if not isinstance(choices, list) or not choices:
+        raise ValueError("Missing choices in chat response")
+    first = choices[0]
+    if not isinstance(first, dict):
+        raise ValueError("Invalid choices payload")
+    message = first.get("message")
+    if not isinstance(message, dict):
+        raise ValueError("Missing message in chat response")
+    content = message.get("content")
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict):
+                txt = item.get("text")
+                if isinstance(txt, str):
+                    parts.append(txt)
+        content = "\n".join(parts)
+    if not isinstance(content, str):
+        raise ValueError("Unsupported chat content format")
+    # Strip <think>...</think> blocks from thinking models
+    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+    return content
+
+
+def _ensure_marked_block(text: str, start_marker: str, end_marker: str) -> str:
+    body = (text or "").strip("\n")
+    if start_marker in body and end_marker in body:
+        return body + ("\n" if not body.endswith("\n") else "")
+    if not body:
+        body = "TODO"
+    return f"{start_marker}\n{body}\n{end_marker}\n"
+
+
+def _strip_code_fences(text: str) -> str:
+    body = (text or "").strip()
+    if body.startswith("```"):
+        lines = body.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        body = "\n".join(lines).strip()
+    return body
+
+
+def _ensure_generated_evaluator(text: str, problem_name: str) -> str:
+    code = _strip_code_fences(text)
+    if not code:
+        return _EVAL_TEMPLATE.format(name=problem_name)
+
+    # Core requirement: must have evaluate() and mention fitness
+    if "def evaluate(" not in code:
+        return _EVAL_TEMPLATE.format(name=problem_name)
+    if '"fitness"' not in code and "'fitness'" not in code and "fitness" not in code:
+        return _EVAL_TEMPLATE.format(name=problem_name)
+
+    # Ensure required imports are present
+    if "import importlib.util" not in code:
+        code = "import importlib.util\n" + code.lstrip()
+    if "import json" not in code:
+        code = "import json\n" + code.lstrip()
+    if "import sys" not in code:
+        code = "import sys\n" + code.lstrip()
+
+    # Add main() boilerplate if missing
+    if "def main(" not in code:
+        code = code.rstrip() + "\n\n\n" + _EVAL_MAIN_BOILERPLATE
+
+    return code.strip("\n") + "\n"
+
+
+_EVAL_MAIN_BOILERPLATE = '''\
+def main() -> int:
+    if len(sys.argv) != 3:
+        print("Usage: python evaluate.py <candidate.py> <results.json>")
+        return 1
+    metrics = evaluate(sys.argv[1])
+    if "fitness" not in metrics:
+        metrics["fitness"] = 0.0
+    metrics["fitness"] = float(metrics["fitness"])
+    with open(sys.argv[2], "w", encoding="utf-8") as f:
+        json.dump(metrics, f, indent=2)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'''
+
+
+def _ensure_generated_init_program(text: str) -> str:
+    code = _strip_code_fences(text)
+    if not code:
+        return _INIT_TEMPLATE
+    # Must have at least the two core functions
+    if "def get_params(" not in code or "def compute(" not in code:
+        return _INIT_TEMPLATE
+    if "import math" not in code:
+        code = "import math\n\n" + code.lstrip()
+    # Strip disallowed imports (only "import math" is allowed)
+    lines = code.splitlines()
+    filtered: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("import ") and stripped != "import math":
+            continue
+        if stripped.startswith("from ") and "import" in stripped:
+            continue
+        filtered.append(line)
+    code = "\n".join(filtered)
+    # Don't require markers here - _ensure_marked_block in the caller will wrap if needed
+    return code.strip("\n") + "\n"
+
+
+def _extract_marked_block(text: str, start_marker: str, end_marker: str) -> tuple[str, str]:
+    body = text or ""
+    start = body.find(start_marker)
+    if start < 0:
+        return "", body
+    end = body.find(end_marker, start + len(start_marker))
+    if end < 0:
+        return "", body
+    end += len(end_marker)
+    block = body[start:end].strip("\n")
+    rest = (body[:start] + body[end:]).strip("\n")
+    return (block + "\n"), (rest + "\n" if rest else "")
+
+
+def _first_nonempty_str(data: dict[str, Any], keys: tuple[str, ...]) -> str:
+    for key in keys:
+        val = data.get(key)
+        if isinstance(val, str) and val.strip():
+            return val
+    return ""
+
+
+def _http_error_message(exc: urllib.error.HTTPError) -> str:
+    try:
+        body = exc.read().decode("utf-8", errors="replace").strip()
+    except Exception:
+        body = ""
+    if body:
+        return f"HTTP {exc.code}: {body[:900]}"
+    return f"HTTP {exc.code}: {exc.reason}"
+
+
+def _api_post_json(api_base: str, api_key: str, path: str, payload: dict[str, Any],
+                   timeout_s: float = 180.0) -> dict[str, Any]:
+    url = f"{api_base.rstrip('/')}{path}"
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(_http_error_message(exc)) from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Request failed: {exc.reason}") from exc
+    try:
+        payload_obj = json.loads(raw)
+    except Exception as exc:
+        raise RuntimeError(f"Invalid JSON from {path}: {raw[:500]}") from exc
+    if not isinstance(payload_obj, dict):
+        raise RuntimeError(f"Invalid response object from {path}")
+    return payload_obj
+
+
+def _encode_multipart_form(
+    fields: dict[str, str],
+    files: dict[str, tuple[str, bytes, str]],
+) -> tuple[bytes, str]:
+    boundary = f"----CodeEvolveBoundary{uuid.uuid4().hex}"
+    out = bytearray()
+    b = boundary.encode("utf-8")
+    for key, value in fields.items():
+        out.extend(b"--" + b + b"\r\n")
+        out.extend(f'Content-Disposition: form-data; name="{key}"\r\n\r\n'.encode("utf-8"))
+        out.extend(value.encode("utf-8"))
+        out.extend(b"\r\n")
+    for key, (filename, data, content_type) in files.items():
+        out.extend(b"--" + b + b"\r\n")
+        out.extend(
+            f'Content-Disposition: form-data; name="{key}"; filename="{filename}"\r\n'.encode("utf-8")
+        )
+        out.extend(f"Content-Type: {content_type}\r\n\r\n".encode("utf-8"))
+        out.extend(data)
+        out.extend(b"\r\n")
+    out.extend(b"--" + b + b"--\r\n")
+    return bytes(out), boundary
+
+
+def _api_transcribe_audio(
+    api_base: str,
+    api_key: str,
+    audio_path: Path,
+    model: str,
+    timeout_s: float = 180.0,
+) -> str:
+    if not audio_path.exists():
+        raise RuntimeError(f"Audio file missing: {audio_path}")
+    if audio_path.stat().st_size < 256:
+        raise RuntimeError("Recorded audio is too short. Please speak a bit longer.")
+    data = audio_path.read_bytes()
+    body, boundary = _encode_multipart_form(
+        fields={
+            "model": model,
+            "response_format": "json",
+        },
+        files={
+            "file": (audio_path.name, data, "audio/wav"),
+        },
+    )
+    url = f"{api_base.rstrip('/')}/audio/transcriptions"
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as exc:
+        raise RuntimeError(_http_error_message(exc)) from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"Transcription request failed: {exc.reason}") from exc
+    try:
+        payload = json.loads(raw)
+    except Exception as exc:
+        raise RuntimeError(f"Invalid transcription response: {raw[:500]}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("Invalid transcription response payload")
+    text = payload.get("text", "")
+    if not isinstance(text, str) or not text.strip():
+        raise RuntimeError("Transcription returned empty text")
+    return text.strip()
+
+
+def _build_generation_messages(description: str, problem_name_hint: str) -> list[dict[str, str]]:
+    user_text = description.strip()
+    if problem_name_hint:
+        user_text += f"\n\nProblem name hint: {problem_name_hint}"
+
+    # Build a single user message with structural examples and the request
+    example_section = (
+        "Here is a COMPLETE example of the expected JSON output for a simple problem "
+        "(x^2 + 3y with target 13). Adapt the logic for the user's problem but keep "
+        "the exact same structure:\n\n"
+        "EXAMPLE evaluate.py (embed as JSON string in evaluator_py key):\n"
+        f"{_AI_EVAL_FORMAT_EXAMPLE}\n\n"
+        "EXAMPLE init_program.py (embed as JSON string in init_program_py key):\n"
+        f"{_AI_INIT_FORMAT_EXAMPLE}\n\n"
+        "EXAMPLE sys_msg (embed as JSON string in sys_msg key):\n"
+        "# PROMPT-BLOCK-START\n"
+        "You are optimizing a Python program.\n"
+        "HARD CONSTRAINTS (violation = fitness 0):\n"
+        "1. ONLY allowed import: \"import math\" - do NOT add numpy, scipy, etc.\n"
+        "2. Do not add new \"import\" lines\n"
+        "3. Only ASCII characters\n"
+        "STRATEGIES:\n"
+        "- Modify compute() to improve fitness\n"
+        "- Tune parameters in get_params()\n"
+        "# PROMPT-BLOCK-END\n\n"
+        "---\n\n"
+        "Now generate files for this problem:\n\n"
+    )
+
+    return [
+        {"role": "system", "content": _AI_NEW_PROBLEM_SYSTEM_PROMPT},
+        {"role": "user", "content": example_section + user_text},
+    ]
+
+
+def _coerce_generated_problem_templates(
+    model_json: dict[str, Any],
+    name_hint: str,
+) -> dict[str, str]:
+    suggested = _first_nonempty_str(
+        model_json,
+        (
+            "suggested_problem_name",
+            "problem_name",
+            "name",
+            "problem",
+        ),
+    )
+    suggested = _sanitize_problem_name(suggested or name_hint or "my_problem")
+
+    files_obj = model_json.get("files")
+    files_map = files_obj if isinstance(files_obj, dict) else {}
+
+    evaluator_raw = _first_nonempty_str(
+        model_json,
+        (
+            "evaluator_py",
+            "evaluate_py",
+            "evaluator",
+            "evaluate",
+        ),
+    ) or _first_nonempty_str(
+        files_map, ("evaluate.py", "evaluator.py", "evaluate_py", "evaluator_py")
+    )
+
+    init_raw = _first_nonempty_str(
+        model_json,
+        (
+            "init_program_py",
+            "init_program",
+            "init_py",
+            "candidate_py",
+            "solution_py",
+        ),
+    ) or _first_nonempty_str(
+        files_map, ("init_program.py", "init_program_py", "init_program", "candidate.py")
+    )
+
+    sys_raw = _first_nonempty_str(
+        model_json,
+        (
+            "sys_msg",
+            "system_prompt",
+            "system_message",
+            "sys_message",
+            "prompt",
+            "prompt_text",
+        ),
+    ) or _first_nonempty_str(
+        files_map, ("sys_msg", "system_prompt", "system_message", "prompt.txt", "sys_msg.txt")
+    )
+
+    # If model mixed prompt block into init code, move it to sys_msg.
+    prompt_from_init, init_remainder = _extract_marked_block(
+        init_raw, "# PROMPT-BLOCK-START", "# PROMPT-BLOCK-END"
+    )
+    if prompt_from_init and not sys_raw.strip():
+        sys_raw = prompt_from_init
+        init_raw = init_remainder
+
+    # If model mixed EVOLVE block into sys_msg, move it to init.
+    evolve_from_sys, sys_remainder = _extract_marked_block(
+        sys_raw, "# EVOLVE-BLOCK-START", "# EVOLVE-BLOCK-END"
+    )
+    if evolve_from_sys and not init_raw.strip():
+        init_raw = "import math\n\n" + evolve_from_sys
+        sys_raw = sys_remainder
+
+    evaluator = _ensure_generated_evaluator(evaluator_raw, problem_name=suggested)
+    init_program = _ensure_generated_init_program(init_raw)
+    init_program = _ensure_marked_block(
+        init_program, "# EVOLVE-BLOCK-START", "# EVOLVE-BLOCK-END"
+    )
+
+    sys_raw = _strip_code_fences(sys_raw) if isinstance(sys_raw, str) else ""
+    if not sys_raw.strip():
+        sys_raw = _SYSMSG_TEMPLATE
+    sys_msg = _ensure_marked_block(
+        sys_raw, "# PROMPT-BLOCK-START", "# PROMPT-BLOCK-END"
+    )
+
+    return {
+        "suggested_problem_name": suggested,
+        "evaluator_py": evaluator.strip("\n") + "\n",
+        "init_program_py": init_program,
+        "sys_msg": sys_msg,
+    }
+
+
+def _api_generate_problem_templates(
+    api_base: str,
+    api_key: str,
+    model: str,
+    description: str,
+    problem_name_hint: str,
+    timeout_s: float = 240.0,
+) -> dict[str, str]:
+    if not description.strip():
+        raise RuntimeError("Description cannot be empty")
+    payload: dict[str, Any] = {
+        "model": model,
+        "messages": _build_generation_messages(description, problem_name_hint),
+        "temperature": 0.2,
+        "response_format": {"type": "json_object"},
+    }
+    try:
+        resp = _api_post_json(api_base, api_key, "/chat/completions", payload, timeout_s=timeout_s)
+    except RuntimeError as exc:
+        msg = str(exc).lower()
+        if "response_format" not in msg:
+            raise
+        payload.pop("response_format", None)
+        resp = _api_post_json(api_base, api_key, "/chat/completions", payload, timeout_s=timeout_s)
+    content = _extract_chat_content(resp)
+    try:
+        parsed = _extract_json_object(content)
+    except Exception:
+        parsed = _fallback_template_payload_from_text(content, name_hint=problem_name_hint)
+    return _coerce_generated_problem_templates(parsed, name_hint=problem_name_hint)
 
 
 # =============================================================================
@@ -715,17 +1441,37 @@ class Dashboard(tk.Tk):
         self._viz_selected_id: Optional[str] = None
         self._viz_nodes_cache: dict[str, VizNode] = {}
         self._viz_positions: dict[str, tuple[float, float]] = {}
+        self._viz_hit_radius: dict[str, float] = {}
         self._viz_metric_key: str = "combined_score"
+        self._viz_metric_names: list[str] = ["combined_score", "fitness"]
+        self._viz_map_feature_names: list[str] = []
+        self._viz_elite_map_type: str = ""
+        self._viz_map_cell_cache: dict[tuple[int, ...], tuple[str, float]] = {}
+        self._viz_parent_map: dict[str, Optional[str]] = {}
+        self._viz_children_map: dict[str, list[str]] = {}
+        self._viz_delta_map: dict[str, Optional[float]] = {}
+        self._viz_depth_map: dict[str, int] = {}
+        self._viz_island_best_ids: dict[int, str] = {}
+        self._viz_global_best_id: Optional[str] = None
+        self._runs_auto_after: Optional[str] = None
+        self._run_item_names: list[str] = []
+        self._run_item_meta: list[dict[str, object]] = []
+        self._run_score_cache: dict[tuple[str, str], tuple[Optional[float], Optional[float]]] = {}
+        self._state_path = self.repo_root / ".dashboard_state.json"
+        self._active_cmd: str = ""
 
         self._build_ui()
-        self._refresh_runs()
+        self._load_ui_state()
         self._refresh_configs()
+        self._refresh_runs()
         self._refresh_models_from_config()
         self._refresh_config_editor()
         self._refresh_models_tab()
         self._refresh_installed_models()
         self._bind_shortcuts()
         self._tick_drain()
+        if self.auto_refresh_var.get():
+            self._schedule_runs_auto_refresh(1200)
 
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -819,7 +1565,7 @@ class Dashboard(tk.Tk):
 
         runs_scroll = ttk.Scrollbar(runs_frame, orient="vertical")
         self.runs_list = tk.Listbox(
-            runs_frame, height=8, width=28, exportselection=False,
+            runs_frame, height=8, width=40, exportselection=False,
             bg=C.SURFACE0, fg=C.TEXT, selectbackground=C.BLUE, selectforeground=C.CRUST,
             highlightthickness=1, highlightbackground=C.SURFACE1,
             borderwidth=0, font=FONT_MONO, activestyle="none",
@@ -829,11 +1575,65 @@ class Dashboard(tk.Tk):
         self.runs_list.grid(row=0, column=0, sticky="nsew")
         runs_scroll.grid(row=0, column=1, sticky="ns")
         self.runs_list.bind("<<ListboxSelect>>", lambda _e: self._on_run_select())
+        self.runs_list.bind("<Double-Button-1>", lambda _e: self._open_selected_run_dir())
+        self.runs_list.bind("<Control-c>", lambda _e: self._copy_selected_run_id())
 
         btn_row = ttk.Frame(runs_frame, style="Surface.TFrame")
         btn_row.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
         ttk.Button(btn_row, text="Refresh", command=self._refresh_runs).pack(side="left", padx=(0, 4))
-        ttk.Button(btn_row, text="Open Folder", command=self._open_experiments).pack(side="left")
+        ttk.Button(btn_row, text="Open Folder", command=self._open_experiments).pack(side="left", padx=(0, 4))
+        ttk.Button(btn_row, text="Open Run", command=self._open_selected_run_dir).pack(side="left", padx=(0, 4))
+        ttk.Button(btn_row, text="Copy ID", command=self._copy_selected_run_id).pack(side="left")
+
+        self.run_filter_var = tk.StringVar(value="")
+        self.auto_refresh_var = tk.BooleanVar(value=True)
+        self.run_sort_var = tk.StringVar(value=RUN_SORT_OPTIONS[0])
+        self.run_status_var = tk.StringVar(value=RUN_STATUS_OPTIONS[0])
+        self.run_min_score_var = tk.StringVar(value="")
+
+        util_row = ttk.Frame(runs_frame, style="Surface.TFrame")
+        util_row.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        ttk.Label(util_row, text="Filter:", style="Dim.TLabel").pack(side="left")
+        self.run_filter_entry = ttk.Entry(util_row, textvariable=self.run_filter_var, width=14)
+        self.run_filter_entry.pack(side="left", padx=(4, 8))
+        ttk.Checkbutton(
+            util_row, text="Auto", variable=self.auto_refresh_var,
+            command=self._on_auto_refresh_toggle,
+        ).pack(side="left")
+
+        util_row2 = ttk.Frame(runs_frame, style="Surface.TFrame")
+        util_row2.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(6, 0))
+        ttk.Label(util_row2, text="Sort:", style="Dim.TLabel").pack(side="left")
+        sort_combo = ttk.Combobox(
+            util_row2,
+            textvariable=self.run_sort_var,
+            values=RUN_SORT_OPTIONS,
+            state="readonly",
+            width=12,
+        )
+        sort_combo.pack(side="left", padx=(4, 8))
+        sort_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_run_sort_change())
+
+        ttk.Label(util_row2, text="State:", style="Dim.TLabel").pack(side="left")
+        state_combo = ttk.Combobox(
+            util_row2,
+            textvariable=self.run_status_var,
+            values=RUN_STATUS_OPTIONS,
+            state="readonly",
+            width=6,
+        )
+        state_combo.pack(side="left", padx=(4, 8))
+        state_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_run_status_change())
+
+        ttk.Label(util_row2, text="Min:", style="Dim.TLabel").pack(side="left")
+        self.run_min_score_entry = ttk.Entry(util_row2, textvariable=self.run_min_score_var, width=8)
+        self.run_min_score_entry.pack(side="left", padx=(4, 0))
+
+        self.runs_meta_var = tk.StringVar(value="")
+        ttk.Label(
+            runs_frame, textvariable=self.runs_meta_var, style="Dim.TLabel",
+            font=FONT_MONO_SM,
+        ).grid(row=4, column=0, columnspan=2, sticky="w", pady=(5, 0))
 
         # Run Snapshot
         snapshot_frame = ttk.LabelFrame(sidebar, text="  Run Snapshot  ", padding=8, style="Card.TLabelframe")
@@ -898,7 +1698,10 @@ class Dashboard(tk.Tk):
         self.advanced_var = tk.BooleanVar(value=False)
         self.skip_dryad_var = tk.BooleanVar(value=True)
         self.no_taskset_var = tk.BooleanVar(value=False)
+        self.notify_done_var = tk.BooleanVar(value=True)
         self.cfg_var = tk.StringVar(value="")
+        self.run_filter_var.trace_add("write", lambda *_: self._refresh_runs())
+        self.run_min_score_var.trace_add("write", lambda *_: self._refresh_runs())
 
         # Row 0: run params
         r = 0
@@ -932,6 +1735,9 @@ class Dashboard(tk.Tk):
         ttk.Checkbutton(chk_frame, text="No taskset", variable=self.no_taskset_var).pack(side="left", padx=(0, 12))
         self.skip_dryad_chk = ttk.Checkbutton(chk_frame, text="Skip Dryad (elegans)", variable=self.skip_dryad_var)
         self.skip_dryad_chk.pack(side="left", padx=(0, 12))
+        ttk.Checkbutton(
+            chk_frame, text="Notify on finish", variable=self.notify_done_var
+        ).pack(side="left", padx=(0, 12))
 
         lbl_winner = ttk.Label(ctl, text="Winner args:")
         lbl_winner.grid(row=r, column=6, sticky="w", pady=(6, 0))
@@ -1035,7 +1841,7 @@ class Dashboard(tk.Tk):
         self.timer_label.configure(background=C.SURFACE0)
 
         self.shortcut_hint = ttk.Label(
-            status_bar, text="Ctrl+R Run  Ctrl+N Next  Esc Stop  Ctrl+L Clear",
+            status_bar, text="Ctrl+R Run  Ctrl+N Next  Ctrl+F Filter  Ctrl+B Best Node  Esc Stop",
             style="Status.TLabel")
         self.shortcut_hint.grid(row=0, column=2, sticky="e", padx=(12, 0))
         self.shortcut_hint.configure(background=C.SURFACE0)
@@ -1048,6 +1854,14 @@ class Dashboard(tk.Tk):
         self.bind_all("<Escape>", lambda _e: self._stop_proc())
         self.bind_all("<Control-l>", lambda _e: self._clear_log())
         self.bind_all("<Control-a>", lambda _e: self._cmd_analyze())
+        self.bind_all("<Control-f>", lambda _e: self._focus_run_filter())
+        self.bind_all("<Control-b>", lambda _e: self._viz_select_best())
+        self.bind_all("<Control-Shift-C>", lambda _e: self._copy_selected_run_id())
+        self.bind_all("<Control-e>", lambda _e: self._viz_export_snapshot())
+
+    def _focus_run_filter(self) -> None:
+        self.run_filter_entry.focus_set()
+        self.run_filter_entry.select_range(0, "end")
 
     def _bind_mousewheel(self, widget: tk.Widget, target: tk.Widget) -> None:
         def _on_mousewheel(event: tk.Event) -> str:
@@ -1074,6 +1888,202 @@ class Dashboard(tk.Tk):
     def _selected_problem(self) -> Optional[Problem]:
         name = self.problem_var.get().strip()
         return self.problems.get(name)
+
+    def _run_activity(self, last_mtime: Optional[float]) -> tuple[str, str]:
+        if last_mtime is None:
+            return ("NEW", C.OVERLAY0)
+        age_s = max(0.0, time.time() - last_mtime)
+        if age_s <= 120.0:
+            return ("LIVE", C.GREEN)
+        if age_s <= 1800.0:
+            return ("WARM", C.YELLOW)
+        return ("IDLE", C.SUBTEXT0)
+
+    def _format_age(self, seconds: Optional[float]) -> str:
+        if seconds is None:
+            return "unknown"
+        total = int(max(0.0, seconds))
+        mins, sec = divmod(total, 60)
+        hrs, mins = divmod(mins, 60)
+        days, hrs = divmod(hrs, 24)
+        if days > 0:
+            return f"{days}d {hrs}h ago"
+        if hrs > 0:
+            return f"{hrs}h {mins}m ago"
+        if mins > 0:
+            return f"{mins}m {sec}s ago"
+        return f"{sec}s ago"
+
+    def _load_ui_state(self) -> None:
+        if not self._state_path.exists():
+            return
+        try:
+            data = json.loads(self._state_path.read_text(encoding="utf-8"))
+        except Exception:
+            return
+        if not isinstance(data, dict):
+            return
+
+        problem = data.get("problem")
+        if isinstance(problem, str) and problem in self.problems:
+            self.problem_var.set(problem)
+
+        for key, var in (
+            ("run_id", self.run_id_var),
+            ("island", self.island_var),
+            ("cpu", self.cpu_var),
+            ("load_ckpt", self.load_ckpt_var),
+            ("winner_args", self.winner_args_var),
+            ("cfg", self.cfg_var),
+            ("run_filter", self.run_filter_var),
+            ("run_sort", self.run_sort_var),
+            ("run_status", self.run_status_var),
+            ("run_min_score", self.run_min_score_var),
+            ("viz_view", self.viz_view_var),
+            ("viz_metric", self.viz_metric_var),
+            ("viz_highlight", self.viz_highlight_var),
+            ("viz_x_metric", self.viz_x_metric_var),
+            ("viz_y_metric", self.viz_y_metric_var),
+        ):
+            val = data.get(key)
+            if isinstance(val, str):
+                var.set(val)
+
+        for key, var in (
+            ("advanced", self.advanced_var),
+            ("skip_dryad", self.skip_dryad_var),
+            ("no_taskset", self.no_taskset_var),
+            ("auto_refresh", self.auto_refresh_var),
+            ("notify_done", self.notify_done_var),
+            ("viz_auto", self.viz_auto_var),
+            ("viz_show_islands", self.viz_show_islands_var),
+        ):
+            val = data.get(key)
+            if isinstance(val, bool):
+                var.set(val)
+
+        if self.run_sort_var.get() not in RUN_SORT_OPTIONS:
+            self.run_sort_var.set(RUN_SORT_OPTIONS[0])
+        if self.run_status_var.get() not in RUN_STATUS_OPTIONS:
+            self.run_status_var.set(RUN_STATUS_OPTIONS[0])
+        if self.viz_view_var.get() not in VIZ_VIEW_OPTIONS:
+            self.viz_view_var.set(VIZ_VIEW_OPTIONS[0])
+        if self.viz_highlight_var.get() not in VIZ_HIGHLIGHT_OPTIONS:
+            self.viz_highlight_var.set(VIZ_HIGHLIGHT_OPTIONS[0])
+        if self.viz_metric_var.get() not in set(self.viz_metric_combo.cget("values")):
+            self.viz_metric_var.set("combined_score")
+        if self.viz_x_metric_var.get() not in set(self.viz_x_metric_combo.cget("values")):
+            self.viz_x_metric_var.set("delta_bic")
+        if self.viz_y_metric_var.get() not in set(self.viz_y_metric_combo.cget("values")):
+            self.viz_y_metric_var.set("quadrupole_score")
+
+        api_base = data.get("api_base")
+        if isinstance(api_base, str) and api_base.strip():
+            values = list(self.api_base_combo.cget("values"))
+            if api_base not in values:
+                values.insert(0, api_base)
+                self.api_base_combo.configure(values=values)
+            self.api_base_var.set(api_base)
+
+        self._toggle_advanced()
+        self._toggle_viz_auto()
+
+    def _save_ui_state(self) -> None:
+        def _get_str(attr: str, default: str = "") -> str:
+            var = getattr(self, attr, None)
+            if var is None:
+                return default
+            try:
+                return str(var.get()).strip()
+            except Exception:
+                return default
+
+        def _get_bool(attr: str, default: bool = False) -> bool:
+            var = getattr(self, attr, None)
+            if var is None:
+                return default
+            try:
+                return bool(var.get())
+            except Exception:
+                return default
+
+        state = {
+            "problem": _get_str("problem_var"),
+            "run_id": _get_str("run_id_var"),
+            "island": _get_str("island_var"),
+            "cpu": _get_str("cpu_var"),
+            "load_ckpt": _get_str("load_ckpt_var"),
+            "winner_args": _get_str("winner_args_var"),
+            "cfg": _get_str("cfg_var"),
+            "api_base": _get_str("api_base_var"),
+            "advanced": _get_bool("advanced_var"),
+            "skip_dryad": _get_bool("skip_dryad_var"),
+            "no_taskset": _get_bool("no_taskset_var"),
+            "auto_refresh": _get_bool("auto_refresh_var"),
+            "notify_done": _get_bool("notify_done_var"),
+            "run_filter": _get_str("run_filter_var"),
+            "run_sort": _get_str("run_sort_var"),
+            "run_status": _get_str("run_status_var"),
+            "run_min_score": _get_str("run_min_score_var"),
+            "viz_view": _get_str("viz_view_var"),
+            "viz_metric": _get_str("viz_metric_var"),
+            "viz_highlight": _get_str("viz_highlight_var"),
+            "viz_x_metric": _get_str("viz_x_metric_var"),
+            "viz_y_metric": _get_str("viz_y_metric_var"),
+            "viz_auto": _get_bool("viz_auto_var"),
+            "viz_show_islands": _get_bool("viz_show_islands_var"),
+        }
+        try:
+            tmp = self._state_path.with_suffix(self._state_path.suffix + ".tmp")
+            tmp.write_text(json.dumps(state, indent=2, sort_keys=True), encoding="utf-8")
+            tmp.replace(self._state_path)
+        except Exception:
+            pass
+
+    def _on_auto_refresh_toggle(self) -> None:
+        enabled = self.auto_refresh_var.get()
+        if enabled:
+            self._schedule_runs_auto_refresh(300)
+            self._set_status("Auto-refresh enabled")
+        else:
+            if self._runs_auto_after:
+                try:
+                    self.after_cancel(self._runs_auto_after)
+                except Exception:
+                    pass
+                self._runs_auto_after = None
+            self._set_status("Auto-refresh paused")
+        self._save_ui_state()
+
+    def _on_run_sort_change(self) -> None:
+        self._refresh_runs()
+        self._save_ui_state()
+
+    def _on_run_status_change(self) -> None:
+        self._refresh_runs()
+        self._save_ui_state()
+
+    def _schedule_runs_auto_refresh(self, delay_ms: int) -> None:
+        if self._runs_auto_after:
+            try:
+                self.after_cancel(self._runs_auto_after)
+            except Exception:
+                pass
+            self._runs_auto_after = None
+        self._runs_auto_after = self.after(delay_ms, self._runs_auto_tick)
+
+    def _runs_auto_tick(self) -> None:
+        self._runs_auto_after = None
+        if self._closing or not self.auto_refresh_var.get():
+            return
+
+        self._refresh_runs()
+        if self.run_id_var.get().strip():
+            self._refresh_run_snapshot()
+
+        with self._proc_lock:
+            running = self._proc is not None
+        self._schedule_runs_auto_refresh(3000 if running else 7000)
 
     def _sync_env_status(self) -> None:
         ok = bool(self.api_base_var.get().strip()) and bool(self.api_key_var.get().strip())
@@ -1121,6 +2131,8 @@ class Dashboard(tk.Tk):
         else:
             self._adv_btns.pack_forget()
             self._adv_sep.pack_forget()
+        if hasattr(self, "_state_path"):
+            self._save_ui_state()
 
     # ------------------------------------------------------------------ Problem refresh
     def _refresh_problems(self) -> None:
@@ -1133,6 +2145,7 @@ class Dashboard(tk.Tk):
             self.problem_var.set(names[0] if names else "")
         self._on_problem_change()
         self._set_status(f"Found {len(names)} problems")
+        self._save_ui_state()
 
     # ------------------------------------------------------------------ New problem wizard
 
@@ -1141,7 +2154,7 @@ class Dashboard(tk.Tk):
         dlg = tk.Toplevel(self)
         dlg.title("New Problem")
         dlg.configure(bg=C.BASE)
-        dlg.geometry("860x720")
+        dlg.geometry("860x760")
         dlg.transient(self)
         dlg.grab_set()
 
@@ -1168,6 +2181,10 @@ class Dashboard(tk.Tk):
         self._bind_mousewheel(body_canvas, body_canvas)
         self._bind_mousewheel(body_frame, body_canvas)
 
+        ai_model_var = tk.StringVar(value=self._suggest_new_problem_ai_model())
+        ai_timeout_var = tk.StringVar(value="240")
+        use_ai_model_in_config_var = tk.BooleanVar(value=True)
+
         def _make_editor(parent, label, template, height=10):
             lf = ttk.LabelFrame(parent, text=f"  {label}  ", padding=6)
             lf.pack(fill="x", pady=(0, 8))
@@ -1179,9 +2196,162 @@ class Dashboard(tk.Tk):
             txt.insert("1.0", template)
             return txt
 
+        ai_lf = ttk.LabelFrame(body_frame, text="  AI Agent  ", padding=8)
+        ai_lf.pack(fill="x", pady=(0, 8))
+
+        ai_cfg_row = ttk.Frame(ai_lf)
+        ai_cfg_row.pack(fill="x")
+        ttk.Label(ai_cfg_row, text="Model:").pack(side="left")
+        ttk.Entry(ai_cfg_row, textvariable=ai_model_var, width=32).pack(side="left", padx=(6, 10))
+        ttk.Button(
+            ai_cfg_row,
+            text="Use lfm2.5-thinking:1.2b",
+            command=lambda: ai_model_var.set("lfm2.5-thinking:1.2b"),
+        ).pack(side="left", padx=(0, 10))
+        ttk.Label(ai_cfg_row, text="Timeout:").pack(side="left")
+        ttk.Entry(ai_cfg_row, textvariable=ai_timeout_var, width=6).pack(side="left", padx=(6, 2))
+        ttk.Label(ai_cfg_row, text="s", style="Dim.TLabel").pack(side="left")
+
+        ai_flags_row = ttk.Frame(ai_lf)
+        ai_flags_row.pack(fill="x", pady=(6, 0))
+        ttk.Checkbutton(
+            ai_flags_row,
+            text="Write this model into new config (explore/exploit/prompt agent)",
+            variable=use_ai_model_in_config_var,
+        ).pack(side="left")
+
+        ttk.Label(
+            ai_lf,
+            text="Describe objective, constraints, and fitness metric; then generate init/evaluate/prompt files.",
+            style="Dim.TLabel",
+        ).pack(anchor="w", pady=(8, 4))
+        ai_desc_txt = tk.Text(
+            ai_lf,
+            height=6,
+            bg=C.SURFACE0,
+            fg=C.TEXT,
+            insertbackground=C.TEXT,
+            selectbackground=C.BLUE,
+            selectforeground=C.CRUST,
+            font=FONT_MONO,
+            wrap="word",
+            undo=True,
+            borderwidth=0,
+        )
+        ai_desc_txt.pack(fill="x", expand=True)
+        ai_desc_txt.insert(
+            "1.0",
+            "Describe your idea here. Include:\n"
+            "- objective and what candidate code should output\n"
+            "- fitness definition (higher is better)\n"
+            "- constraints and edge cases\n"
+            "- quick test example(s)\n",
+        )
+
+        ai_status_row = ttk.Frame(ai_lf)
+        ai_status_row.pack(fill="x", pady=(6, 0))
+        ai_status_lbl = ttk.Label(ai_status_row, text="", style="Dim.TLabel")
+        ai_status_lbl.pack(side="left")
+        gen_btn = ttk.Button(ai_status_row, text="Generate with AI")
+        gen_btn.pack(side="right")
+
         eval_txt = _make_editor(body_frame, "evaluate.py", _EVAL_TEMPLATE.format(name="my_problem"), 18)
         init_txt = _make_editor(body_frame, "init_program.py  (between EVOLVE-BLOCK markers)", _INIT_TEMPLATE, 12)
         sysmsg_txt = _make_editor(body_frame, "SYS_MSG  (LLM system prompt)", _SYSMSG_TEMPLATE, 12)
+
+        def _set_editor_text(editor: tk.Text, value: str) -> None:
+            editor.delete("1.0", "end")
+            editor.insert("1.0", value)
+
+        def _set_ai_status(text: str, color: str) -> None:
+            ai_status_lbl.configure(text=text, foreground=color)
+            try:
+                dlg.update_idletasks()
+            except Exception:
+                pass
+
+        def _generate_with_ai() -> None:
+            api_base = self.api_base_var.get().strip()
+            api_key = self.api_key_var.get().strip()
+            if not api_base or not api_key:
+                messagebox.showerror(
+                    "Missing API Settings",
+                    "Set API_BASE and API_KEY in the dashboard header before using AI generation.",
+                    parent=dlg,
+                )
+                return
+
+            model = ai_model_var.get().strip() or _AI_TEMPLATE_MODEL_DEFAULT
+            description = ai_desc_txt.get("1.0", "end-1c").strip()
+            if not description:
+                _set_ai_status("Add a problem description first.", C.RED)
+                messagebox.showwarning(
+                    "Missing Description",
+                    "Describe the objective/fitness before generating.",
+                    parent=dlg,
+                )
+                return
+
+            try:
+                timeout_s = float(ai_timeout_var.get().strip() or "240")
+            except Exception:
+                _set_ai_status("Timeout must be numeric.", C.RED)
+                messagebox.showwarning("Invalid Timeout", "Timeout must be numeric.", parent=dlg)
+                return
+            if timeout_s <= 0:
+                _set_ai_status("Timeout must be > 0.", C.RED)
+                messagebox.showwarning("Invalid Timeout", "Timeout must be > 0.", parent=dlg)
+                return
+
+            hint = name_var.get().strip()
+            gen_btn.configure(state="disabled")
+            _set_ai_status(f"Generating with {model}...", C.YELLOW)
+
+            def _worker() -> None:
+                result: Optional[dict[str, str]] = None
+                err: Optional[str] = None
+                try:
+                    result = _api_generate_problem_templates(
+                        api_base=api_base,
+                        api_key=api_key,
+                        model=model,
+                        description=description,
+                        problem_name_hint=hint,
+                        timeout_s=timeout_s,
+                    )
+                except Exception as exc:
+                    err = str(exc)
+
+                def _apply() -> None:
+                    if not dlg.winfo_exists():
+                        return
+                    gen_btn.configure(state="normal")
+                    if err or result is None:
+                        msg = err or "unknown error"
+                        _set_ai_status(
+                            f"AI generation failed: {msg}",
+                            C.RED,
+                        )
+                        messagebox.showerror(
+                            "AI Generation Failed",
+                            f"Model: {model}\n\n{msg}",
+                            parent=dlg,
+                        )
+                        return
+                    suggested = (result.get("suggested_problem_name", "") or "").strip()
+                    if suggested:
+                        name_var.set(_sanitize_problem_name(suggested))
+                    _set_editor_text(eval_txt, result.get("evaluator_py", ""))
+                    _set_editor_text(init_txt, result.get("init_program_py", ""))
+                    _set_editor_text(sysmsg_txt, result.get("sys_msg", ""))
+                    _set_ai_status(f"Generated via {model}", C.GREEN)
+                    self._set_status(f"AI templates generated with {model}")
+
+                self.after(0, _apply)
+
+            threading.Thread(target=_worker, daemon=True).start()
+
+        gen_btn.configure(command=_generate_with_ai)
 
         # -- Bottom buttons
         btn_row = ttk.Frame(dlg, padding=(12, 6, 12, 10))
@@ -1195,12 +2365,13 @@ class Dashboard(tk.Tk):
                        eval_txt.get("1.0", "end-1c"),
                        init_txt.get("1.0", "end-1c"),
                        sysmsg_txt.get("1.0", "end-1c"),
+                       ai_model_var.get().strip() if use_ai_model_in_config_var.get() else "",
                        status_lbl,
                    )).pack(side="right")
 
     def _create_problem(self, dlg: tk.Toplevel, name: str,
                         eval_code: str, init_code: str, sysmsg: str,
-                        status_lbl: ttk.Label) -> None:
+                        agent_model: str, status_lbl: ttk.Label) -> None:
         """Validate inputs and create all problem files on disk."""
         # Validate name
         if not name:
@@ -1213,6 +2384,29 @@ class Dashboard(tk.Tk):
         if prob_dir.exists():
             status_lbl.configure(text=f"'{name}' already exists", foreground=C.RED)
             return
+
+        prompt_from_init, init_remainder = _extract_marked_block(
+            init_code, "# PROMPT-BLOCK-START", "# PROMPT-BLOCK-END"
+        )
+        if prompt_from_init and not (sysmsg or "").strip():
+            sysmsg = prompt_from_init
+            init_code = init_remainder
+        evolve_from_sys, sys_remainder = _extract_marked_block(
+            sysmsg, "# EVOLVE-BLOCK-START", "# EVOLVE-BLOCK-END"
+        )
+        if evolve_from_sys and not (init_code or "").strip():
+            init_code = "import math\n\n" + evolve_from_sys
+            sysmsg = sys_remainder
+
+        # Normalize generated/edited files into strict CodeEvolve format.
+        eval_code = _ensure_generated_evaluator(eval_code, problem_name=name)
+        init_code = _ensure_generated_init_program(init_code)
+        init_code = _ensure_marked_block(
+            init_code, "# EVOLVE-BLOCK-START", "# EVOLVE-BLOCK-END"
+        )
+        sysmsg = _ensure_marked_block(
+            sysmsg, "# PROMPT-BLOCK-START", "# PROMPT-BLOCK-END"
+        )
 
         status_lbl.configure(text="Creating...", foreground=C.YELLOW)
         dlg.update_idletasks()
@@ -1229,6 +2423,48 @@ class Dashboard(tk.Tk):
             (prob_dir / "input" / "src" / "init_program.py").write_text(init_code, encoding="utf-8")
 
             # config.yaml
+            agent_model = agent_model.strip()
+            if agent_model == _NONE_MODEL:
+                agent_model = ""
+
+            evolve_cfg = dict(_DEFAULT_EVOLVE_CONFIG)
+            exploration_ensemble: list[dict[str, Any]] = []
+            exploitation_ensemble: list[dict[str, Any]] = []
+            sampler_aux = {
+                "model_name": "",
+                "temp": 0.18,
+                "top_p": 0.78,
+                "max_tok": 4096,
+                "retries": 3,
+                "request_timeout_s": 240.0,
+                "weight": 1,
+                "verify_ssl": False,
+            }
+
+            if agent_model:
+                evolve_cfg["meta_prompting"] = True
+                exploration_ensemble = [{
+                    "model_name": agent_model,
+                    "temp": 0.75,
+                    "top_p": 0.92,
+                    "max_tok": 4096,
+                    "retries": 3,
+                    "request_timeout_s": 240.0,
+                    "weight": 1,
+                    "verify_ssl": False,
+                }]
+                exploitation_ensemble = [{
+                    "model_name": agent_model,
+                    "temp": 0.22,
+                    "top_p": 0.82,
+                    "max_tok": 4096,
+                    "retries": 3,
+                    "request_timeout_s": 240.0,
+                    "weight": 1,
+                    "verify_ssl": False,
+                }]
+                sampler_aux["model_name"] = agent_model
+
             cfg = {
                 "SYS_MSG": sysmsg + "\n",
                 "CODEBASE_PATH": "src/",
@@ -1238,14 +2474,16 @@ class Dashboard(tk.Tk):
                 "SEED": 42,
                 "MAX_MEM_BYTES": 5_000_000_000,
                 "MEM_CHECK_INTERVAL_S": 0.1,
-                "EVOLVE_CONFIG": dict(_DEFAULT_EVOLVE_CONFIG),
-                "EXPLORATION_ENSEMBLE": [],
-                "EXPLOITATION_ENSEMBLE": [],
-                "SAMPLER_AUX_LM": {
-                    "model_name": "", "temp": 0.18, "top_p": 0.78,
-                    "max_tok": 4096, "retries": 3, "weight": 1, "verify_ssl": False,
+                "EVOLVE_CONFIG": evolve_cfg,
+                "EXPLORATION_ENSEMBLE": exploration_ensemble,
+                "EXPLOITATION_ENSEMBLE": exploitation_ensemble,
+                "SAMPLER_AUX_LM": sampler_aux,
+                "EMBEDDING": {
+                    "model_name": "",
+                    "retries": 3,
+                    "request_timeout_s": 240.0,
+                    "verify_ssl": False,
                 },
-                "EMBEDDING": {"model_name": "", "retries": 3, "verify_ssl": False},
             }
             cfg_path = prob_dir / "configs" / "config.yaml"
             cfg_path.write_text(yaml.dump(cfg, default_flow_style=False, sort_keys=False,
@@ -1279,7 +2517,10 @@ class Dashboard(tk.Tk):
         self._refresh_problems()
         self.problem_var.set(name)
         self._on_problem_change()
-        self._set_status(f"Created problem: {name}")
+        if agent_model:
+            self._set_status(f"Created problem: {name} (agent {agent_model})")
+        else:
+            self._set_status(f"Created problem: {name}")
         dlg.destroy()
 
     # ------------------------------------------------------------------ Island fitness chart
@@ -1327,9 +2568,9 @@ class Dashboard(tk.Tk):
 
         for island_dir in islands:
             idx = int(island_dir.name)
-            log_path = island_dir / "results.log"
+            log_path = _island_log(island_dir)
             points: list[tuple[int, float]] = []
-            if log_path.exists():
+            if log_path is not None:
                 try:
                     with log_path.open("r", encoding="utf-8", errors="replace") as f:
                         for line in f:
@@ -1567,8 +2808,8 @@ class Dashboard(tk.Tk):
         for island_dir in run_dir.iterdir() if run_dir.exists() else []:
             if not island_dir.is_dir() or not island_dir.name.isdigit():
                 continue
-            log_path = island_dir / "results.log"
-            if not log_path.exists():
+            log_path = _island_log(island_dir)
+            if log_path is None:
                 continue
             try:
                 local_best = None
@@ -1616,10 +2857,10 @@ class Dashboard(tk.Tk):
 
         for island_dir in islands:
             idx = int(island_dir.name)
-            log_path = island_dir / "results.log"
+            log_path = _island_log(island_dir)
             local_best = None
             local_epoch = 0
-            if log_path.exists():
+            if log_path is not None:
                 try:
                     with log_path.open("r", encoding="utf-8", errors="replace") as f:
                         for line in f:
@@ -1643,15 +2884,19 @@ class Dashboard(tk.Tk):
                     global_best_island = idx
             latest_epoch = max(latest_epoch, local_epoch)
 
-        from datetime import datetime
         updated_str = "unknown"
+        activity = "NEW"
+        age_str = "unknown"
         if last_mtime is not None:
             updated_str = datetime.fromtimestamp(last_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            age_str = self._format_age(time.time() - last_mtime)
+        activity, _ = self._run_activity(last_mtime)
 
         lines = [
             f"Run: {run_id}",
             f"Islands: {len(islands)}",
             f"Latest epoch: {latest_epoch}",
+            f"Activity: {activity} ({age_str})",
             f"Last update: {updated_str}",
         ]
         if global_best is not None:
@@ -1661,8 +2906,11 @@ class Dashboard(tk.Tk):
             lines.append("Per island:")
             lines.append("  " + "  ".join(summaries))
 
-        best_sol = (run_dir / "best_sol.py").exists()
-        best_prompt = (run_dir / "best_prompt.txt").exists()
+        # Check run root and island subdirs for best artifacts
+        best_sol = (run_dir / "best_sol.py").exists() or any(
+            (d / "best_sol.py").exists() for d in islands)
+        best_prompt = (run_dir / "best_prompt.txt").exists() or any(
+            (d / "best_prompt.txt").exists() for d in islands)
         lines.append("")
         lines.append(f"best_sol.py: {'yes' if best_sol else 'no'}")
         lines.append(f"best_prompt.txt: {'yes' if best_prompt else 'no'}")
@@ -1680,13 +2928,30 @@ class Dashboard(tk.Tk):
 
         ctrl = ttk.Frame(viz_tab, padding=(10, 8), style="Toolbar.TFrame")
         ctrl.grid(row=0, column=0, sticky="ew")
-        ctrl.columnconfigure(6, weight=1)
+        ctrl.columnconfigure(18, weight=1)
 
+        self.viz_view_var = tk.StringVar(value=VIZ_VIEW_OPTIONS[0])
         self.viz_metric_var = tk.StringVar(value="combined_score")
+        self.viz_highlight_var = tk.StringVar(value=VIZ_HIGHLIGHT_OPTIONS[0])
+        self.viz_x_metric_var = tk.StringVar(value="delta_bic")
+        self.viz_y_metric_var = tk.StringVar(value="quadrupole_score")
+        self.viz_show_islands_var = tk.BooleanVar(value=True)
         self.viz_auto_var = tk.BooleanVar(value=True)
         self.viz_epoch_var = tk.StringVar(value="")
+        self.viz_find_var = tk.StringVar(value="")
 
-        ttk.Label(ctrl, text="Metric:").grid(row=0, column=0, sticky="w")
+        ttk.Label(ctrl, text="View:").grid(row=0, column=0, sticky="w")
+        self.viz_view_combo = ttk.Combobox(
+            ctrl,
+            textvariable=self.viz_view_var,
+            values=VIZ_VIEW_OPTIONS,
+            state="readonly",
+            width=12,
+        )
+        self.viz_view_combo.grid(row=0, column=1, sticky="w", padx=(4, 12))
+        self.viz_view_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_viz_display_change())
+
+        ttk.Label(ctrl, text="Metric:").grid(row=0, column=2, sticky="w")
         self.viz_metric_combo = ttk.Combobox(
             ctrl,
             textvariable=self.viz_metric_var,
@@ -1702,19 +2967,87 @@ class Dashboard(tk.Tk):
             state="readonly",
             width=18,
         )
-        self.viz_metric_combo.grid(row=0, column=1, sticky="w", padx=(4, 12))
-        self.viz_metric_combo.bind("<<ComboboxSelected>>", lambda _e: self._refresh_visualizer())
+        self.viz_metric_combo.grid(row=0, column=3, sticky="w", padx=(4, 12))
+        self.viz_metric_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_viz_metric_change())
+
+        ttk.Label(ctrl, text="Highlight:").grid(row=0, column=4, sticky="w")
+        self.viz_highlight_combo = ttk.Combobox(
+            ctrl,
+            textvariable=self.viz_highlight_var,
+            values=VIZ_HIGHLIGHT_OPTIONS,
+            state="readonly",
+            width=12,
+        )
+        self.viz_highlight_combo.grid(row=0, column=5, sticky="w", padx=(4, 12))
+        self.viz_highlight_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_viz_display_change())
+
+        ttk.Checkbutton(
+            ctrl, text="Show islands", variable=self.viz_show_islands_var,
+            command=self._on_viz_display_change,
+        ).grid(row=0, column=6, sticky="w", padx=(0, 12))
+
+        ttk.Label(ctrl, text="X dim:").grid(row=0, column=7, sticky="w")
+        self.viz_x_metric_combo = ttk.Combobox(
+            ctrl,
+            textvariable=self.viz_x_metric_var,
+            values=[
+                "delta_bic",
+                "quadrupole_score",
+                "chi2_total",
+                "smoothness_score",
+                "combined_score",
+            ],
+            state="readonly",
+            width=16,
+        )
+        self.viz_x_metric_combo.grid(row=0, column=8, sticky="w", padx=(4, 8))
+        self.viz_x_metric_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_viz_display_change())
+
+        ttk.Label(ctrl, text="Y dim:").grid(row=0, column=9, sticky="w")
+        self.viz_y_metric_combo = ttk.Combobox(
+            ctrl,
+            textvariable=self.viz_y_metric_var,
+            values=[
+                "quadrupole_score",
+                "delta_bic",
+                "chi2_total",
+                "asymptotic_score",
+                "combined_score",
+            ],
+            state="readonly",
+            width=16,
+        )
+        self.viz_y_metric_combo.grid(row=0, column=10, sticky="w", padx=(4, 12))
+        self.viz_y_metric_combo.bind("<<ComboboxSelected>>", lambda _e: self._on_viz_display_change())
 
         ttk.Checkbutton(
             ctrl, text="Auto (5 epochs)", variable=self.viz_auto_var,
-            command=self._toggle_viz_auto,
-        ).grid(row=0, column=2, sticky="w", padx=(0, 12))
+            command=self._on_viz_auto_toggle,
+        ).grid(row=0, column=11, sticky="w", padx=(0, 12))
 
         ttk.Button(ctrl, text="Refresh", command=self._refresh_visualizer).grid(
-            row=0, column=3, sticky="w", padx=(0, 12))
+            row=0, column=12, sticky="w", padx=(0, 12))
+
+        ttk.Label(ctrl, text="Find:").grid(row=0, column=13, sticky="w")
+        viz_find_entry = ttk.Entry(ctrl, textvariable=self.viz_find_var, width=20)
+        viz_find_entry.grid(row=0, column=14, sticky="w", padx=(4, 6))
+        viz_find_entry.bind("<Return>", lambda _e: self._viz_find_and_select())
+
+        ttk.Button(ctrl, text="Find Node", command=self._viz_find_and_select).grid(
+            row=0, column=15, sticky="w", padx=(0, 6)
+        )
+        ttk.Button(ctrl, text="Focus Best", command=self._viz_select_best).grid(
+            row=0, column=16, sticky="w", padx=(0, 6)
+        )
+        ttk.Button(ctrl, text="Copy Details", command=self._viz_copy_details).grid(
+            row=0, column=17, sticky="w", padx=(0, 6)
+        )
+        ttk.Button(ctrl, text="Export", command=self._viz_export_snapshot).grid(
+            row=0, column=18, sticky="w", padx=(0, 12)
+        )
 
         ttk.Label(ctrl, textvariable=self.viz_epoch_var, style="Dim.TLabel",
-                  font=FONT_MONO_SM).grid(row=0, column=4, sticky="w")
+                  font=FONT_MONO_SM).grid(row=1, column=0, columnspan=19, sticky="w", pady=(4, 0))
 
         body = ttk.PanedWindow(viz_tab, orient="horizontal")
         body.grid(row=1, column=0, sticky="nsew", padx=10, pady=(0, 10))
@@ -1739,14 +3072,53 @@ class Dashboard(tk.Tk):
         ttk.Label(detail_frame, text="Selection", style="Title.TLabel").grid(
             row=0, column=0, sticky="w", pady=(4, 6)
         )
+        self._viz_side_notebook = ttk.Notebook(detail_frame)
+        self._viz_side_notebook.grid(row=1, column=0, sticky="nsew")
+
+        details_tab = ttk.Frame(self._viz_side_notebook)
+        self._viz_program_tab = details_tab
+        details_tab.columnconfigure(0, weight=1)
+        details_tab.rowconfigure(0, weight=1)
+        self._viz_side_notebook.add(details_tab, text="  Program  ")
         self._viz_detail = ScrolledText(
-            detail_frame, height=16, wrap="word",
+            details_tab, height=16, wrap="word",
             bg=C.MANTLE, fg=C.TEXT, insertbackground=C.TEXT,
             highlightthickness=0, borderwidth=0, padx=8, pady=6,
             font=FONT_MONO,
         )
-        self._viz_detail.grid(row=1, column=0, sticky="nsew")
+        self._viz_detail.grid(row=0, column=0, sticky="nsew")
         self._viz_detail.configure(state="disabled")
+
+        diff_tab = ttk.Frame(self._viz_side_notebook)
+        self._viz_diff_tab = diff_tab
+        diff_tab.columnconfigure(0, weight=1)
+        diff_tab.rowconfigure(0, weight=1)
+        self._viz_side_notebook.add(diff_tab, text="  Diff  ")
+        self._viz_diff = ScrolledText(
+            diff_tab, height=12, wrap="none",
+            bg=C.MANTLE, fg=C.TEXT, insertbackground=C.TEXT,
+            highlightthickness=0, borderwidth=0, padx=8, pady=6,
+            font=FONT_MONO_SM,
+        )
+        self._viz_diff.grid(row=0, column=0, sticky="nsew")
+        self._viz_diff.configure(state="disabled")
+
+        map_tab = ttk.Frame(self._viz_side_notebook)
+        self._viz_map_tab = map_tab
+        map_tab.columnconfigure(0, weight=1)
+        map_tab.rowconfigure(0, weight=1)
+        self._viz_side_notebook.add(map_tab, text="  MAP-Elites  ")
+        self._viz_map_detail = ScrolledText(
+            map_tab, height=10, wrap="word",
+            bg=C.MANTLE, fg=C.TEXT, insertbackground=C.TEXT,
+            highlightthickness=0, borderwidth=0, padx=8, pady=6,
+            font=FONT_MONO_SM,
+        )
+        self._viz_map_detail.grid(row=0, column=0, sticky="nsew")
+        self._viz_map_detail.configure(state="disabled")
+
+        self._set_viz_diff_text("Select a node to inspect mutation diff against its parent.")
+        self._set_viz_map_text("MAP-Elites metadata will appear after loading checkpoints.")
 
         # Kick off auto-refresh loop
         self._toggle_viz_auto()
@@ -1761,6 +3133,128 @@ class Dashboard(tk.Tk):
         if self.viz_auto_var.get():
             self._viz_last_ckpt = None
             self._viz_after = self.after(1500, self._maybe_refresh_visualizer)
+
+    def _on_viz_auto_toggle(self) -> None:
+        self._toggle_viz_auto()
+        self._save_ui_state()
+
+    def _on_viz_metric_change(self) -> None:
+        self._refresh_visualizer()
+        self._save_ui_state()
+
+    def _on_viz_display_change(self) -> None:
+        self._refresh_visualizer()
+        self._save_ui_state()
+
+    def _set_text_widget(self, widget: ScrolledText, text: str) -> None:
+        widget.configure(state="normal")
+        widget.delete("1.0", "end")
+        widget.insert("1.0", text)
+        widget.configure(state="disabled")
+
+    def _set_viz_diff_text(self, text: str) -> None:
+        self._set_text_widget(self._viz_diff, text)
+
+    def _set_viz_map_text(self, text: str) -> None:
+        self._set_text_widget(self._viz_map_detail, text)
+
+    def _viz_active_detail_text(self) -> str:
+        if not hasattr(self, "_viz_side_notebook"):
+            return self._viz_detail.get("1.0", "end-1c")
+        selected = self._viz_side_notebook.select()
+        if hasattr(self, "_viz_diff_tab") and selected == str(self._viz_diff_tab):
+            return self._viz_diff.get("1.0", "end-1c")
+        if hasattr(self, "_viz_map_tab") and selected == str(self._viz_map_tab):
+            return self._viz_map_detail.get("1.0", "end-1c")
+        return self._viz_detail.get("1.0", "end-1c")
+
+    def _viz_float(self, value: object) -> Optional[float]:
+        try:
+            x = float(value)
+        except Exception:
+            return None
+        return x if math.isfinite(x) else None
+
+    def _viz_metric_lookup(self, metric_map: dict[str, float], key: str) -> Optional[float]:
+        if key in metric_map:
+            return metric_map[key]
+        lower = key.lower()
+        upper = key.upper()
+        if lower in metric_map:
+            return metric_map[lower]
+        if upper in metric_map:
+            return metric_map[upper]
+        for k, v in metric_map.items():
+            if k.lower() == lower:
+                return v
+        return None
+
+    def _viz_node_metric_value(self, node: VizNode, key: str) -> Optional[float]:
+        metrics = node.metrics if isinstance(node.metrics, dict) else {}
+        if metrics:
+            found = self._viz_metric_lookup(metrics, key)
+            if found is not None:
+                return found
+        if key == "fitness":
+            return node.fitness
+        if key == "combined_score":
+            return node.metric if self._viz_metric_key == "combined_score" else node.fitness
+        eval_metrics = node.eval_metrics if isinstance(node.eval_metrics, dict) else {}
+        raw = eval_metrics.get(key, eval_metrics.get(key.lower(), eval_metrics.get(key.upper())))
+        return self._viz_float(raw) if raw is not None else None
+
+    def _viz_node_dimension_value(self, node: VizNode, key: str) -> Optional[float]:
+        val = self._viz_node_metric_value(node, key)
+        if val is not None:
+            return val
+        feats = node.features if isinstance(node.features, dict) else {}
+        if key in feats:
+            return feats[key]
+        low = key.lower()
+        for fk, fv in feats.items():
+            if fk.lower() == low:
+                return fv
+        return None
+
+    def _viz_update_metric_controls(
+        self, metric_names: set[str], feature_names: set[str]
+    ) -> None:
+        preferred = [
+            "combined_score",
+            "fitness",
+            "delta_bic",
+            "chi2_total",
+            "chi2_tt",
+            "chi2_ee",
+            "chi2_te",
+            "quadrupole_score",
+        ]
+        ordered_metrics = [k for k in preferred if k in metric_names]
+        ordered_metrics.extend(sorted(k for k in metric_names if k not in set(ordered_metrics)))
+        if ordered_metrics:
+            self._viz_metric_names = ordered_metrics
+            self.viz_metric_combo.configure(values=ordered_metrics)
+            if self.viz_metric_var.get() not in ordered_metrics:
+                self.viz_metric_var.set(ordered_metrics[0])
+
+        dim_names = set(feature_names) | set(metric_names)
+        ordered_dims = [k for k in preferred if k in dim_names]
+        ordered_dims.extend(sorted(k for k in dim_names if k not in set(ordered_dims)))
+        if not ordered_dims:
+            ordered_dims = list(self._viz_metric_names)
+        if ordered_dims:
+            self.viz_x_metric_combo.configure(values=ordered_dims)
+            self.viz_y_metric_combo.configure(values=ordered_dims)
+            if self.viz_x_metric_var.get() not in ordered_dims:
+                self.viz_x_metric_var.set(
+                    "delta_bic" if "delta_bic" in ordered_dims else ordered_dims[0]
+                )
+            if self.viz_y_metric_var.get() not in ordered_dims:
+                self.viz_y_metric_var.set(
+                    "quadrupole_score"
+                    if "quadrupole_score" in ordered_dims
+                    else ordered_dims[min(1, len(ordered_dims) - 1)]
+                )
 
     def _maybe_refresh_visualizer(self) -> None:
         self._viz_after = None
@@ -1858,28 +3352,51 @@ class Dashboard(tk.Tk):
         self.viz_epoch_var.set("")
         self._viz_nodes_cache = {}
         self._viz_positions = {}
+        self._viz_hit_radius = {}
+        self._viz_map_feature_names = []
+        self._viz_elite_map_type = ""
+        self._viz_map_cell_cache = {}
+        self._viz_parent_map = {}
+        self._viz_children_map = {}
+        self._viz_delta_map = {}
+        self._viz_depth_map = {}
+        self._viz_island_best_ids = {}
+        self._viz_global_best_id = None
 
         p = self._selected_problem()
         if not p:
             self._viz_label("Select a problem")
+            self._set_viz_detail_text("Select a problem and run to inspect evolution.")
+            self._set_viz_diff_text("Select a node to inspect mutation diff against its parent.")
+            self._set_viz_map_text("MAP-Elites metadata will appear after loading checkpoints.")
             return
         run_id = self.run_id_var.get().strip()
         if not run_id:
             self._viz_label("Select a run")
+            self._set_viz_detail_text("Pick a run from the left panel to load checkpoints.")
+            self._set_viz_diff_text("Select a node to inspect mutation diff against its parent.")
+            self._set_viz_map_text("MAP-Elites metadata will appear after loading checkpoints.")
             return
         run_dir = self.experiments_dir / p.name / run_id
         if not run_dir.exists():
             self._viz_label(f"Not found: {run_id}")
+            self._set_viz_detail_text(f"Run directory not found:\n{run_dir}")
+            self._set_viz_diff_text("Select a node to inspect mutation diff against its parent.")
+            self._set_viz_map_text("MAP-Elites metadata will appear after loading checkpoints.")
             return
 
         ckpt_map, latest_epoch = self._viz_collect_ckpts(run_dir)
         if not ckpt_map:
             self._viz_label("No checkpoints yet")
+            self._set_viz_detail_text("No ckpt files found yet. Start a run and refresh.")
+            self._set_viz_diff_text("No checkpoints loaded yet.")
+            self._set_viz_map_text("No checkpoints loaded yet.")
             return
 
-        metric_key = self.viz_metric_var.get().strip() or "combined_score"
-        self._viz_metric_key = metric_key
         nodes: dict[str, VizNode] = {}
+        metric_names: set[str] = {"fitness", "combined_score"}
+        feature_names: set[str] = set()
+
         for island_idx, ckpt_path in ckpt_map.items():
             ckpt = self._load_ckpt(ckpt_path)
             if not isinstance(ckpt, dict):
@@ -1887,19 +3404,77 @@ class Dashboard(tk.Tk):
             sol_db = ckpt.get("sol_db")
             if sol_db is None or not hasattr(sol_db, "programs"):
                 continue
+
+            elite_map_type = getattr(sol_db, "elite_map_type", None)
+            if elite_map_type and not self._viz_elite_map_type:
+                self._viz_elite_map_type = str(elite_map_type)
+            elite_map = getattr(sol_db, "elite_map", None)
+            if elite_map is not None:
+                feats = getattr(elite_map, "features", None)
+                if isinstance(feats, list):
+                    for feat in feats:
+                        fname = getattr(feat, "name", None)
+                        if isinstance(fname, str) and fname:
+                            feature_names.add(fname)
+                raw_map = getattr(elite_map, "map", None)
+                if isinstance(raw_map, dict):
+                    for raw_idx, raw_entry in raw_map.items():
+                        if not isinstance(raw_entry, tuple) or len(raw_entry) < 2:
+                            continue
+                        elite_id, elite_fit = raw_entry[0], self._viz_float(raw_entry[1])
+                        if elite_id is None or elite_fit is None:
+                            continue
+                        if isinstance(raw_idx, tuple):
+                            cell_key = tuple(int(v) for v in raw_idx if isinstance(v, (int, float)))
+                        elif isinstance(raw_idx, (int, float)):
+                            cell_key = (int(raw_idx),)
+                        else:
+                            continue
+                        if not cell_key:
+                            continue
+                        prev = self._viz_map_cell_cache.get(cell_key)
+                        if prev is None or elite_fit > prev[1]:
+                            self._viz_map_cell_cache[cell_key] = (str(elite_id), elite_fit)
+
             try:
                 programs = sol_db.programs.values()
             except Exception:
                 continue
+
             for prog in programs:
-                metric_val = self._viz_metric_value(prog, metric_key)
-                if metric_val is None or not math.isfinite(metric_val):
-                    continue
-                fitness = getattr(prog, "fitness", None)
-                if fitness is None or not math.isfinite(float(fitness)):
-                    fitness_val = metric_val
-                else:
-                    fitness_val = float(fitness)
+                metric_map: dict[str, float] = {}
+                eval_metrics_raw = getattr(prog, "eval_metrics", None)
+                eval_metrics = eval_metrics_raw if isinstance(eval_metrics_raw, dict) else {}
+
+                fitness_val = self._viz_float(getattr(prog, "fitness", None))
+                if fitness_val is not None:
+                    metric_map["fitness"] = fitness_val
+                    metric_map.setdefault("combined_score", fitness_val)
+
+                for mk, mv in eval_metrics.items():
+                    if not isinstance(mk, str):
+                        continue
+                    fv = self._viz_float(mv)
+                    if fv is None:
+                        continue
+                    metric_map[mk] = fv
+                    metric_names.add(mk)
+                if "combined_score" not in metric_map and "COMBINED_SCORE" in metric_map:
+                    metric_map["combined_score"] = metric_map["COMBINED_SCORE"]
+                metric_names.update(metric_map.keys())
+
+                feature_map: dict[str, float] = {}
+                raw_features = getattr(prog, "features", None)
+                if isinstance(raw_features, dict):
+                    for fk, fv in raw_features.items():
+                        if not isinstance(fk, str):
+                            continue
+                        num = self._viz_float(fv)
+                        if num is None:
+                            continue
+                        feature_map[fk] = num
+                        feature_names.add(fk)
+
                 generation = getattr(prog, "generation", None)
                 if generation is None:
                     generation = getattr(prog, "iteration_found", 0)
@@ -1917,32 +3492,402 @@ class Dashboard(tk.Tk):
                 if not prog_id:
                     continue
                 code = getattr(prog, "code", None)
-                eval_metrics = getattr(prog, "eval_metrics", None)
+                if fitness_val is None:
+                    fitness_val = self._viz_metric_lookup(metric_map, "combined_score")
+                if fitness_val is None:
+                    fitness_val = 0.0
+
                 nodes[prog_id] = VizNode(
                     prog_id=str(prog_id),
                     parent_id=str(parent_id) if parent_id else None,
                     island=island_found,
                     generation=generation,
-                    fitness=fitness_val,
-                    metric=float(metric_val),
+                    fitness=float(fitness_val),
+                    metric=0.0,
                     code=str(code) if code is not None else None,
                     eval_metrics=eval_metrics if isinstance(eval_metrics, dict) else None,
+                    metrics=metric_map,
+                    features=feature_map,
                 )
 
+        self._viz_update_metric_controls(metric_names, feature_names)
+        self._viz_map_feature_names = sorted(feature_names)
+        metric_key = self.viz_metric_var.get().strip() or "combined_score"
+        self._viz_metric_key = metric_key
+
+        filtered_nodes: dict[str, VizNode] = {}
+        for prog_id, node in nodes.items():
+            metric_val = self._viz_node_metric_value(node, metric_key)
+            if metric_val is None:
+                continue
+            if not math.isfinite(metric_val):
+                continue
+            filtered_nodes[prog_id] = VizNode(
+                prog_id=node.prog_id,
+                parent_id=node.parent_id,
+                island=node.island,
+                generation=node.generation,
+                fitness=node.fitness,
+                metric=float(metric_val),
+                code=node.code,
+                eval_metrics=node.eval_metrics,
+                metrics=node.metrics,
+                features=node.features,
+            )
+        nodes = filtered_nodes
+
         if not nodes:
-            self._viz_label("No programs in checkpoints")
+            self._viz_label("No programs for selected metric")
+            self._set_viz_detail_text(
+                "Checkpoints loaded, but no valid programs were found for the selected metric."
+            )
+            self._set_viz_diff_text("Try another metric or load more checkpoints.")
+            self._update_viz_map_overview(metric_key)
             return
 
         edges = [(n.parent_id, n.prog_id) for n in nodes.values() if n.parent_id in nodes]
-        self._draw_viz_graph(nodes, edges, metric_key)
         self._viz_nodes_cache = nodes
+        (
+            self._viz_parent_map,
+            self._viz_children_map,
+            self._viz_delta_map,
+            self._viz_depth_map,
+        ) = self._viz_build_indexes(nodes)
+        for prog_id, node in nodes.items():
+            best_id = self._viz_island_best_ids.get(node.island)
+            if best_id is None or node.metric > nodes[best_id].metric:
+                self._viz_island_best_ids[node.island] = prog_id
+        self._viz_global_best_id = max(nodes, key=lambda prog_id: nodes[prog_id].metric)
+
+        view_mode = self.viz_view_var.get().strip()
+        if view_mode not in VIZ_VIEW_OPTIONS:
+            view_mode = VIZ_VIEW_OPTIONS[0]
+            self.viz_view_var.set(view_mode)
+        if view_mode == "Performance":
+            self._draw_viz_performance(nodes, metric_key)
+        elif view_mode == "List":
+            self._draw_viz_list(nodes, metric_key)
+        elif view_mode == "MAP-Elites":
+            self._draw_viz_map_elites(nodes, metric_key)
+        else:
+            self._draw_viz_graph(nodes, edges, metric_key)
 
         if self._viz_selected_id in nodes:
             self._update_viz_details(self._viz_selected_id)
+        else:
+            self._viz_selected_id = None
+            self._update_viz_overview()
 
+        if view_mode != "MAP-Elites":
+            self._update_viz_map_overview(metric_key)
         if latest_epoch is not None:
-            self.viz_epoch_var.set(f"Latest ckpt: {latest_epoch}")
+            self.viz_epoch_var.set(f"{view_mode} view | Latest ckpt: {latest_epoch}")
             self._viz_last_ckpt = latest_epoch
+
+    def _viz_find_and_select(self) -> None:
+        query = self.viz_find_var.get().strip()
+        nodes = self._viz_nodes_cache
+        if not nodes:
+            self._set_status("Visualizer has no loaded nodes")
+            return
+        if not query:
+            self._set_status("Enter a program id fragment to find")
+            return
+
+        if query in nodes:
+            matches = [query]
+        else:
+            q = query.lower()
+            matches = [pid for pid in nodes if pid.lower() == q]
+            if not matches:
+                matches = [pid for pid in nodes if pid.lower().startswith(q)]
+            if not matches:
+                matches = [pid for pid in nodes if q in pid.lower()]
+            if not matches:
+                matches = [
+                    pid
+                    for pid, node in nodes.items()
+                    if node.code and q in node.code.lower()
+                ]
+
+        if not matches:
+            self._set_status(f"No match for '{query}'")
+            return
+
+        best_id = max(matches, key=lambda pid: (nodes[pid].metric, nodes[pid].generation, pid))
+        self._viz_selected_id = best_id
+        self._update_viz_details(best_id)
+        self._refresh_visualizer()
+        self._set_status(f"Selected {best_id} ({len(matches)} matches)")
+
+    def _viz_select_best(self) -> None:
+        if not self._viz_nodes_cache:
+            self._refresh_visualizer()
+        best_id = self._viz_global_best_id
+        if not best_id or best_id not in self._viz_nodes_cache:
+            self._set_status("No best node available yet")
+            return
+        self._viz_selected_id = best_id
+        self._update_viz_details(best_id)
+        self._refresh_visualizer()
+        self._set_status(f"Focused best node: {best_id}")
+
+    def _viz_copy_details(self) -> None:
+        text = self._viz_active_detail_text()
+        if not text.strip():
+            self._set_status("No visualizer details to copy")
+            return
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(text)
+            self.update_idletasks()
+            self._set_status("Visualizer details copied to clipboard")
+        except Exception as e:
+            messagebox.showerror("Copy Failed", str(e))
+
+    def _viz_export_snapshot(self) -> None:
+        p = self._selected_problem()
+        run_id = self.run_id_var.get().strip()
+        if not p or not run_id:
+            messagebox.showerror("Export Snapshot", "Select a problem and run first.")
+            return
+        if not self._viz_positions:
+            self._refresh_visualizer()
+            if not self._viz_positions:
+                messagebox.showerror("Export Snapshot", "No visualizer graph to export yet.")
+                return
+
+        run_dir = self.experiments_dir / p.name / run_id
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_name = f"{p.name}_{run_id}_{self._viz_metric_key}_{stamp}.ps"
+        out = filedialog.asksaveasfilename(
+            parent=self,
+            title="Export Visualizer Snapshot",
+            defaultextension=".ps",
+            filetypes=[("PostScript", "*.ps"), ("All Files", "*.*")],
+            initialdir=str(run_dir if run_dir.exists() else self.repo_root),
+            initialfile=base_name,
+        )
+        if not out:
+            return
+
+        out_path = Path(out)
+        if out_path.suffix.lower() != ".ps":
+            out_path = out_path.with_suffix(".ps")
+
+        try:
+            self._viz_canvas.update_idletasks()
+            self._viz_canvas.postscript(file=str(out_path), colormode="color")
+            detail_txt = self._viz_detail.get("1.0", "end-1c")
+            diff_txt = self._viz_diff.get("1.0", "end-1c")
+            map_txt = self._viz_map_detail.get("1.0", "end-1c")
+            sidecar = out_path.with_suffix(".txt")
+            info = [
+                f"problem={p.name}",
+                f"run={run_id}",
+                f"metric={self._viz_metric_key}",
+                f"view={self.viz_view_var.get().strip()}",
+                f"exported_at={datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                f"selected={self._viz_selected_id or ''}",
+                f"nodes={len(self._viz_nodes_cache)}",
+            ]
+            sidecar.write_text(
+                "\n".join(info)
+                + "\n\n[PROGRAM]\n"
+                + detail_txt
+                + "\n\n[DIFF]\n"
+                + diff_txt
+                + "\n\n[MAP-ELITES]\n"
+                + map_txt,
+                encoding="utf-8",
+            )
+            self._set_status(f"Visualizer exported: {out_path.name}")
+        except Exception as e:
+            messagebox.showerror("Export Snapshot", f"Failed to export snapshot:\n{e}")
+
+    def _set_viz_detail_text(self, text: str) -> None:
+        self._set_text_widget(self._viz_detail, text)
+
+    def _update_viz_overview(self) -> None:
+        if not self._viz_nodes_cache:
+            self._set_viz_detail_text("Select a node to inspect lineage and generated code.")
+            self._set_viz_diff_text("Select a node to inspect mutation diff against its parent.")
+            return
+        nodes = self._viz_nodes_cache
+        metrics = [n.metric for n in nodes.values()]
+        generations = [n.generation for n in nodes.values()]
+        islands = sorted({n.island for n in nodes.values()})
+        edge_count = sum(1 for parent in self._viz_parent_map.values() if parent is not None)
+        roots = sum(1 for parent in self._viz_parent_map.values() if parent is None)
+        improvements = [d for d in self._viz_delta_map.values() if d is not None and d > 0]
+        regressions = [d for d in self._viz_delta_map.values() if d is not None and d < 0]
+        migration_edges = sum(
+            1
+            for child_id, parent_id in self._viz_parent_map.items()
+            if parent_id is not None
+            and nodes[parent_id].island != nodes[child_id].island
+        )
+        best = nodes.get(self._viz_global_best_id or "")
+        best_line = "Global best: n/a"
+        if best is not None:
+            best_line = (
+                f"Global best: {best.metric:.4f} at I{best.island} / G{best.generation} "
+                f"(id={best.prog_id})"
+            )
+        x_dim = self.viz_x_metric_var.get().strip()
+        y_dim = self.viz_y_metric_var.get().strip()
+        view_mode = self.viz_view_var.get().strip()
+        highlight_mode = self.viz_highlight_var.get().strip()
+        max_depth = max(self._viz_depth_map.values()) if self._viz_depth_map else 0
+        avg_gain = (sum(improvements) / len(improvements)) if improvements else 0.0
+        avg_drop = (sum(regressions) / len(regressions)) if regressions else 0.0
+
+        lines = [
+            "Evolution overview",
+            "",
+            f"View: {view_mode}",
+            f"Metric: {self._viz_metric_key}",
+            f"Highlight: {highlight_mode}",
+            f"Custom dimensions: X={x_dim} | Y={y_dim}",
+            "",
+            f"Programs: {len(nodes)}",
+            f"Mutations (edges): {edge_count}",
+            f"Roots: {roots}",
+            f"Islands: {', '.join(str(i) for i in islands)}",
+            f"Generation span: {min(generations)} -> {max(generations)}",
+            f"{self._viz_metric_key} span: {min(metrics):.4f} -> {max(metrics):.4f}",
+            f"Depth (longest lineage): {max_depth}",
+            f"Improving mutations: {len(improvements)}",
+            f"Regressing mutations: {len(regressions)}",
+            f"Cross-island migrations: {migration_edges}",
+            f"Avg positive delta: {avg_gain:+.4f}",
+            f"Avg negative delta: {avg_drop:+.4f}",
+            "",
+            best_line,
+            "",
+            "Click a node to inspect its lineage, delta, and generated code.",
+        ]
+        if self._viz_metric_names:
+            preview = ", ".join(self._viz_metric_names[:10])
+            if len(self._viz_metric_names) > 10:
+                preview += f", ... (+{len(self._viz_metric_names) - 10} more)"
+            lines.extend(["", "Detected metrics:", preview])
+        self._set_viz_detail_text("\n".join(lines))
+        self._set_viz_diff_text("Select a node to inspect mutation diff against its parent.")
+
+    def _update_viz_map_overview(self, metric_key: str) -> None:
+        lines = [
+            "MAP-Elites overview",
+            "",
+            f"Selected metric: {metric_key}",
+            f"Custom dimensions: X={self.viz_x_metric_var.get().strip()} | "
+            f"Y={self.viz_y_metric_var.get().strip()}",
+        ]
+
+        if self._viz_elite_map_type:
+            lines.append(f"Checkpoint elite map type: {self._viz_elite_map_type}")
+        if self._viz_map_feature_names:
+            lines.append("Checkpoint MAP-Elites features: " + ", ".join(self._viz_map_feature_names))
+
+        if self._viz_map_cell_cache:
+            lines.append(f"Checkpoint cells occupied: {len(self._viz_map_cell_cache)}")
+            ranked_cells = sorted(
+                self._viz_map_cell_cache.items(),
+                key=lambda item: item[1][1],
+                reverse=True,
+            )
+            lines.append("")
+            lines.append("Top occupied cells:")
+            for cell, (pid, fit) in ranked_cells[:8]:
+                lines.append(f"cell={cell}  fitness={fit:.4f}  id={pid}")
+        else:
+            lines.append("")
+            lines.append("No explicit checkpoint elite-map cells found.")
+            lines.append("MAP-Elites view will build a live grid from selected X/Y dimensions.")
+
+        self._set_viz_map_text("\n".join(lines))
+
+    def _viz_build_indexes(
+        self, nodes: dict[str, VizNode]
+    ) -> tuple[
+        dict[str, Optional[str]],
+        dict[str, list[str]],
+        dict[str, Optional[float]],
+        dict[str, int],
+    ]:
+        parent_map: dict[str, Optional[str]] = {}
+        children_map: dict[str, list[str]] = {prog_id: [] for prog_id in nodes}
+        delta_map: dict[str, Optional[float]] = {}
+        depth_map: dict[str, int] = {}
+
+        for prog_id, node in nodes.items():
+            parent_id = node.parent_id if node.parent_id in nodes else None
+            parent_map[prog_id] = parent_id
+            if parent_id is not None:
+                children_map.setdefault(parent_id, []).append(prog_id)
+                delta_map[prog_id] = node.metric - nodes[parent_id].metric
+            else:
+                delta_map[prog_id] = None
+
+        for child_ids in children_map.values():
+            child_ids.sort(key=lambda cid: (nodes[cid].generation, -nodes[cid].metric, cid))
+
+        for prog_id in nodes:
+            if prog_id in depth_map:
+                continue
+            hops = 0
+            cur = prog_id
+            seen: set[str] = set()
+            while True:
+                parent_id = parent_map.get(cur)
+                if parent_id is None or parent_id in seen:
+                    break
+                cached = depth_map.get(parent_id)
+                if cached is not None:
+                    hops += cached + 1
+                    break
+                seen.add(parent_id)
+                hops += 1
+                cur = parent_id
+            depth_map[prog_id] = hops
+
+        return parent_map, children_map, delta_map, depth_map
+
+    def _viz_lineage_sets(
+        self, selected_id: Optional[str]
+    ) -> tuple[set[str], set[tuple[str, str]], set[str], set[tuple[str, str]]]:
+        ancestors: set[str] = set()
+        ancestor_edges: set[tuple[str, str]] = set()
+        descendants: set[str] = set()
+        descendant_edges: set[tuple[str, str]] = set()
+
+        if not selected_id or selected_id not in self._viz_nodes_cache:
+            return ancestors, ancestor_edges, descendants, descendant_edges
+
+        cur = selected_id
+        seen_ancestors = {selected_id}
+        while True:
+            parent_id = self._viz_parent_map.get(cur)
+            if parent_id is None or parent_id in seen_ancestors:
+                break
+            ancestors.add(parent_id)
+            ancestor_edges.add((parent_id, cur))
+            seen_ancestors.add(parent_id)
+            cur = parent_id
+
+        stack = [selected_id]
+        seen_descendants = {selected_id}
+        while stack:
+            parent = stack.pop()
+            for child in self._viz_children_map.get(parent, []):
+                if child in seen_descendants:
+                    continue
+                seen_descendants.add(child)
+                descendants.add(child)
+                descendant_edges.add((parent, child))
+                stack.append(child)
+
+        return ancestors, ancestor_edges, descendants, descendant_edges
 
     def _viz_label(self, text: str) -> None:
         self._viz_canvas.update_idletasks()
@@ -1965,7 +3910,12 @@ class Dashboard(tk.Tk):
                 closest_id = prog_id
         if closest_id is None or closest_dist is None:
             return
-        if closest_dist > 120:  # ~11px radius
+        hit_r = self._viz_hit_radius.get(closest_id, 7.0) + 5.0
+        if closest_dist > hit_r * hit_r:
+            if self._viz_selected_id is not None:
+                self._viz_selected_id = None
+                self._update_viz_overview()
+                self._refresh_visualizer()
             return
         self._viz_selected_id = closest_id
         self._update_viz_details(closest_id)
@@ -1975,156 +3925,854 @@ class Dashboard(tk.Tk):
         node = self._viz_nodes_cache.get(prog_id)
         if not node:
             return
+        parent_id = self._viz_parent_map.get(node.prog_id)
+        parent = self._viz_nodes_cache.get(parent_id or "")
+        delta = self._viz_delta_map.get(node.prog_id)
+        depth = self._viz_depth_map.get(node.prog_id, 0)
+        child_ids = self._viz_children_map.get(node.prog_id, [])
+        is_island_best = self._viz_island_best_ids.get(node.island) == node.prog_id
+        is_global_best = self._viz_global_best_id == node.prog_id
+        badges: list[str] = []
+        if parent_id is None:
+            badges.append("ROOT")
+        if is_island_best:
+            badges.append("ISLAND CHAMPION")
+        if is_global_best:
+            badges.append("GLOBAL CHAMPION")
+
         lines = [
             f"Program ID: {node.prog_id}",
             f"Island: {node.island}",
             f"Generation: {node.generation}",
             f"Fitness: {node.fitness:.4f}",
             f"{self._viz_metric_key}: {node.metric:.4f}",
+            f"Mutation delta: {delta:+.4f}" if delta is not None else "Mutation delta: n/a (root)",
+            f"Lineage depth: {depth}",
+            f"Children: {len(child_ids)}",
             "",
         ]
-        if node.parent_id:
-            lines.append(f"Parent: {node.parent_id}")
+        if badges:
+            lines.append("Role: " + ", ".join(badges))
             lines.append("")
+        if parent_id:
+            if parent is not None:
+                lines.append(
+                    f"Parent: {parent_id} (I{parent.island}, G{parent.generation}, "
+                    f"{self._viz_metric_key}={parent.metric:.4f})"
+                )
+                if parent.island != node.island:
+                    lines.append(f"Migration edge: I{parent.island} -> I{node.island}")
+            else:
+                lines.append(f"Parent: {parent_id}")
+            lines.append("")
+        if child_ids:
+            child_preview = ", ".join(child_ids[:5])
+            if len(child_ids) > 5:
+                child_preview += f", ... (+{len(child_ids) - 5} more)"
+            lines.append("Children:")
+            lines.append(child_preview)
+            lines.append("")
+
+        metric_map = node.metrics if isinstance(node.metrics, dict) else {}
+        metric_items = [
+            (k, v) for k, v in metric_map.items() if isinstance(k, str) and isinstance(v, float)
+        ]
+        if metric_items:
+            metric_items = sorted(metric_items, key=lambda kv: (-kv[1], kv[0]))
+            top_metrics = metric_items[:8]
+            abs_max = max(1e-9, max(abs(v) for _, v in top_metrics))
+            lines.append("Metric bars:")
+            for key, val in top_metrics:
+                blocks = int(round(20 * (abs(val) / abs_max)))
+                bar = "#" * max(1, min(20, blocks))
+                lines.append(f"{key:<22} {val:>11.5f}  {bar}")
+            lines.append("")
+
         if node.eval_metrics:
             try:
                 metrics_text = json.dumps(node.eval_metrics, indent=2, sort_keys=True)
             except Exception:
                 metrics_text = str(node.eval_metrics)
+            if len(metrics_text) > 2500:
+                metrics_text = metrics_text[:2500] + "\n... truncated ..."
             lines.append("Eval metrics:")
             lines.append(metrics_text)
             lines.append("")
         if node.code:
             code = node.code
-            if len(code) > 4000:
-                code = code[:4000] + "\n# ... truncated ..."
+            if len(code) > 2500:
+                code = code[:2500] + "\n# ... truncated ..."
             lines.append("Code:")
             lines.append(code)
 
-        self._viz_detail.configure(state="normal")
-        self._viz_detail.delete("1.0", "end")
-        self._viz_detail.insert("1.0", "\n".join(lines))
-        self._viz_detail.configure(state="disabled")
+        self._set_viz_detail_text("\n".join(lines))
+
+        if parent is None:
+            if parent_id is None:
+                self._set_viz_diff_text("Root program has no parent. No mutation diff available.")
+            else:
+                self._set_viz_diff_text(f"Parent program not found in loaded checkpoints: {parent_id}")
+            return
+        if not parent.code or not node.code:
+            self._set_viz_diff_text("Missing code for parent or child; cannot render diff.")
+            return
+
+        diff_lines = list(
+            difflib.unified_diff(
+                parent.code.splitlines(),
+                node.code.splitlines(),
+                fromfile=f"parent:{parent.prog_id}",
+                tofile=f"child:{node.prog_id}",
+                lineterm="",
+            )
+        )
+        if not diff_lines:
+            self._set_viz_diff_text("No textual mutation detected between parent and child code.")
+            return
+        if len(diff_lines) > 500:
+            diff_lines = diff_lines[:500] + ["... diff truncated ..."]
+        self._set_viz_diff_text("\n".join(diff_lines))
 
     def _draw_viz_graph(self, nodes: dict[str, VizNode],
                         edges: list[tuple[str, str]], metric_key: str) -> None:
         self._viz_canvas.update_idletasks()
-        cw = max(400, self._viz_canvas.winfo_width() or 600)
-        ch = max(240, self._viz_canvas.winfo_height() or 360)
+        cw = max(520, self._viz_canvas.winfo_width() or 600)
+        ch = max(300, self._viz_canvas.winfo_height() or 360)
 
-        pad_l, pad_r, pad_t, pad_b = 56, 20, 30, 20
-        islands = sorted({n.island for n in nodes.values()})
+        pad_l, pad_r, pad_t, pad_b = 78, 24, 82, 44
+        show_islands = self.viz_show_islands_var.get()
+        highlight_mode = self.viz_highlight_var.get().strip()
+        real_islands = sorted({n.island for n in nodes.values()})
+        islands = real_islands if show_islands else [0]
         if not islands:
             self._viz_label("No islands found")
             return
-
-        gap = 16
-        band_h = (ch - pad_t - pad_b - gap * (len(islands) - 1)) / max(1, len(islands))
         plot_w = cw - pad_l - pad_r
+        plot_h = ch - pad_t - pad_b
+        if plot_w < 120 or plot_h < 80:
+            self._viz_label("Visualizer area too small")
+            return
 
+        generations = [n.generation for n in nodes.values()]
         metric_vals = [n.metric for n in nodes.values()]
+        g_min = min(generations)
+        g_max = max(generations)
+        g_range = max(1, g_max - g_min)
         m_min = min(metric_vals)
         m_max = max(metric_vals)
         m_range = max(1e-6, m_max - m_min)
+        self._viz_hit_radius = {}
 
-        # Metric axis label
+        # Evolution-time gradient (left=early, right=late)
+        grad_steps = 14
+        for i in range(grad_steps):
+            t0 = i / grad_steps
+            t1 = (i + 1) / grad_steps
+            x0 = pad_l + t0 * plot_w
+            x1 = pad_l + t1 * plot_w
+            tone = _mix_color(C.MANTLE, C.SKY, 0.02 + 0.22 * t0)
+            tone = _mix_color(tone, C.SURFACE0, 0.55)
+            self._viz_canvas.create_rectangle(x0, pad_t, x1, ch - pad_b, fill=tone, outline="")
+
+        # Header
         self._viz_canvas.create_text(
-            pad_l + plot_w / 2, 8,
-            text=f"{metric_key}",
+            pad_l, 14,
+            text=f"Evolution Landscape ({metric_key})",
+            fill=C.LAVENDER,
+            font=("Ubuntu Sans", 11, "bold"),
+            anchor="nw",
+        )
+        self._viz_canvas.create_text(
+            cw - pad_r, 16,
+            text=f"gen {g_min} -> {g_max} | {'islands on' if show_islands else 'islands collapsed'}",
             fill=C.SUBTEXT0,
             font=FONT_MONO_SM,
-            anchor="n",
+            anchor="ne",
         )
 
-        # Metric axis ticks
-        for i in range(5):
-            mv = m_min + (m_range / 4) * i
-            x = pad_l + (i / 4) * plot_w
-            self._viz_canvas.create_line(x, pad_t - 2, x, pad_t - 8, fill=C.SURFACE2)
+        improved_edges = sum(1 for d in self._viz_delta_map.values() if d is not None and d > 0)
+        migration_edges = sum(
+            1
+            for child_id, parent_id in self._viz_parent_map.items()
+            if parent_id is not None and nodes[parent_id].island != nodes[child_id].island
+        )
+        cards = [
+            ("Programs", str(len(nodes)), C.BLUE),
+            ("Mutations", str(len(edges)), C.TEAL),
+            ("Improving", str(improved_edges), C.GREEN),
+            ("Migrations", str(migration_edges), C.SKY),
+            ("Best", f"{m_max:.4f}", C.YELLOW),
+        ]
+        card_gap = 8
+        card_count = len(cards)
+        card_w = (plot_w - card_gap * (card_count - 1)) / max(1, card_count)
+        card_w = max(95, min(190, card_w))
+        card_y0, card_y1 = 34, 68
+        card_x = pad_l
+        for label, value, accent in cards:
+            card_x1 = min(cw - pad_r, card_x + card_w)
+            bg = _mix_color(C.SURFACE0, accent, 0.18)
+            border = _mix_color(accent, C.SURFACE1, 0.45)
+            self._viz_canvas.create_rectangle(
+                card_x, card_y0, card_x1, card_y1, fill=bg, outline=border, width=1
+            )
             self._viz_canvas.create_text(
-                x, pad_t - 10, text=f"{mv:.2f}",
-                fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 8), anchor="s",
+                card_x + 7, card_y0 + 6, text=label,
+                fill=C.SUBTEXT0, font=("Ubuntu Sans Mono", 8), anchor="nw",
+            )
+            self._viz_canvas.create_text(
+                card_x + 7, card_y0 + 21, text=value,
+                fill=accent, font=("Ubuntu Sans", 10, "bold"), anchor="nw",
+            )
+            card_x += card_w + card_gap
+            if card_x >= cw - pad_r:
+                break
+
+        # Generation axis + ticks
+        tick_count = 8 if g_range > 7 else max(2, g_range + 1)
+        for i in range(tick_count):
+            frac = i / max(1, tick_count - 1)
+            gv = int(round(g_min + frac * g_range))
+            x = pad_l + frac * plot_w
+            grid_color = _mix_color(C.SURFACE1, C.SKY, 0.10 + 0.20 * frac)
+            self._viz_canvas.create_line(x, pad_t, x, ch - pad_b, fill=grid_color, dash=(2, 6))
+            self._viz_canvas.create_text(
+                x, ch - pad_b + 10, text=str(gv),
+                fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 8), anchor="n",
             )
 
-        # Precompute positions
+        self._viz_canvas.create_line(
+            pad_l, ch - pad_b + 20, cw - pad_r, ch - pad_b + 20,
+            fill=C.SUBTEXT0, width=1, arrow="last",
+        )
+        self._viz_canvas.create_text(
+            pad_l + plot_w / 2, ch - pad_b + 22,
+            text="Generation timeline (early -> late)",
+            fill=C.SUBTEXT0, font=("Ubuntu Sans Mono", 8), anchor="n",
+        )
+
+        # Precompute lane scales and positions
+        gap = min(20, max(10, int(plot_h / max(3, len(islands) * 6))))
+        band_h = (plot_h - gap * (len(islands) - 1)) / max(1, len(islands))
         positions: dict[str, tuple[float, float]] = {}
         island_nodes: dict[int, list[VizNode]] = {i: [] for i in islands}
         for n in nodes.values():
-            island_nodes.setdefault(n.island, []).append(n)
+            lane = n.island if show_islands else 0
+            island_nodes.setdefault(lane, []).append(n)
 
         for idx, island in enumerate(islands):
             band_top = pad_t + idx * (band_h + gap)
             band_bot = band_top + band_h
-            group = island_nodes.get(island, [])
+            group = sorted(
+                island_nodes.get(island, []),
+                key=lambda n: (n.generation, n.metric, n.prog_id),
+            )
             if not group:
                 continue
-            g_min = min(n.generation for n in group)
-            g_max = max(n.generation for n in group)
-            g_range = max(1, g_max - g_min)
 
-            # Band background + label
-            band_fill = C.MANTLE if idx % 2 else C.SURFACE0
+            if show_islands:
+                island_color = self._island_colors[island % len(self._island_colors)]
+                island_label = f"I{island}"
+            else:
+                island_color = C.BLUE
+                island_label = "All islands"
+            band_fill = _mix_color(C.MANTLE, island_color, 0.11 if idx % 2 == 0 else 0.07)
             self._viz_canvas.create_rectangle(
                 pad_l, band_top, cw - pad_r, band_bot, fill=band_fill, outline=""
             )
-            self._viz_canvas.create_line(pad_l, band_top, cw - pad_r, band_top, fill=C.SURFACE2)
-            self._viz_canvas.create_text(
-                8, band_top + 4, text=f"Island {island}",
-                fill=C.SUBTEXT0, font=FONT_MONO_SM, anchor="nw",
+            self._viz_canvas.create_line(
+                pad_l, band_top, cw - pad_r, band_top,
+                fill=_mix_color(island_color, C.SURFACE2, 0.6),
             )
 
-            # Generation ticks
-            tick_count = 4
-            for ti in range(tick_count):
-                gv = g_min + (g_range / (tick_count - 1 or 1)) * ti
-                y = band_top + ((gv - g_min) / max(1, g_range)) * (band_bot - band_top)
-                self._viz_canvas.create_line(pad_l - 4, y, pad_l, y, fill=C.SURFACE2)
-                if ti in (0, tick_count - 1):
-                    self._viz_canvas.create_text(
-                        pad_l - 6, y, text=str(int(gv)),
-                        fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 8), anchor="e",
-                    )
+            local_min = min(n.metric for n in group)
+            local_max = max(n.metric for n in group)
+            local_range = max(1e-9, local_max - local_min)
+            self._viz_canvas.create_text(
+                pad_l - 10, (band_top + band_bot) / 2,
+                text=island_label,
+                fill=island_color, font=("Ubuntu Sans", 10, "bold"), anchor="e",
+            )
+            self._viz_canvas.create_text(
+                pad_l + 6, band_top + 4,
+                text=f"{local_min:.3f} -> {local_max:.3f}",
+                fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 7), anchor="nw",
+            )
 
+            def _metric_y(metric: float) -> float:
+                if local_range <= 1e-9:
+                    pct = 0.5
+                else:
+                    pct = _clamp01((metric - local_min) / local_range)
+                return band_bot - (0.14 + 0.74 * pct) * band_h
+
+            # Running-best frontier per island
+            per_gen_best: dict[int, float] = {}
             for n in group:
-                x = pad_l + ((n.metric - m_min) / m_range) * plot_w
-                y = band_top + ((n.generation - g_min) / g_range) * (band_bot - band_top)
+                per_gen_best[n.generation] = max(per_gen_best.get(n.generation, -1e18), n.metric)
+            best_so_far = -1e18
+            frontier: list[float] = []
+            for gen in sorted(per_gen_best):
+                best_so_far = max(best_so_far, per_gen_best[gen])
+                x = pad_l + ((gen - g_min) / g_range) * plot_w
+                y = _metric_y(best_so_far)
+                frontier.extend([x, y])
+            if len(frontier) >= 4:
+                frontier_color = _mix_color(island_color, C.TEXT, 0.38)
+                self._viz_canvas.create_line(*frontier, fill=frontier_color, width=2)
+
+            # Node placement within island lane
+            for n in group:
+                x = pad_l + ((n.generation - g_min) / g_range) * plot_w
+                y = _metric_y(n.metric)
+                seed = sum(ord(ch) for ch in n.prog_id[-8:])
+                x += ((seed % 7) - 3) * 0.55
+                y += (((seed // 7) % 7) - 3) * 0.75
+                x = max(pad_l + 2, min(cw - pad_r - 2, x))
+                y = max(band_top + 2, min(band_bot - 2, y))
                 positions[n.prog_id] = (x, y)
 
-        # Draw edges first
+        ancestor_nodes, ancestor_edges, descendants, descendant_edges = self._viz_lineage_sets(
+            self._viz_selected_id
+        )
+        positive_deltas = [d for d in self._viz_delta_map.values() if d is not None and d > 0]
+        negative_deltas = [abs(d) for d in self._viz_delta_map.values() if d is not None and d < 0]
+        max_gain = max(positive_deltas) if positive_deltas else 0.0
+        max_drop = max(negative_deltas) if negative_deltas else 0.0
+
+        # Draw edges (improvement/migration encoded)
         for parent_id, child_id in edges:
             p = positions.get(parent_id)
             c = positions.get(child_id)
             if not p or not c:
                 continue
-            self._viz_canvas.create_line(p[0], p[1], c[0], c[1], fill=C.SURFACE2, width=1)
+            parent = nodes[parent_id]
+            child = nodes[child_id]
+            delta = self._viz_delta_map.get(child_id)
+            cross_island = parent.island != child.island
 
-        # Draw nodes
-        best_by_island: dict[int, float] = {}
-        for n in nodes.values():
-            best_by_island[n.island] = max(best_by_island.get(n.island, -1e9), n.metric)
+            if delta is None:
+                color = C.SURFACE1
+                width = 1.0
+                dash = (2, 5)
+            elif delta >= 0:
+                gain = _clamp01(delta / max(1e-9, max_gain)) if max_gain > 0 else 0.0
+                color = _mix_color(C.GREEN, C.SKY, 0.30 * gain)
+                color = _mix_color(color, C.SURFACE1, 0.20)
+                width = 1.2 + 2.3 * gain
+                dash = ()
+            else:
+                drop = _clamp01(abs(delta) / max(1e-9, max_drop)) if max_drop > 0 else 0.0
+                color = _mix_color(C.RED, C.SURFACE1, 0.40 - 0.20 * drop)
+                width = 1.0
+                dash = (2, 4)
 
-        for n in nodes.values():
+            if cross_island:
+                color = _mix_color(color, C.SKY, 0.35)
+                width = max(width, 1.6)
+                dash = (4, 3)
+
+            if highlight_mode == "Migration" and not cross_island:
+                color = _mix_color(color, C.SURFACE0, 0.58)
+                width = max(0.8, width * 0.7)
+            elif highlight_mode == "Improvement" and (delta is None or delta <= 0):
+                color = _mix_color(color, C.SURFACE0, 0.58)
+                width = max(0.8, width * 0.7)
+            elif highlight_mode == "Recent" and g_range > 0:
+                recency = (child.generation - g_min) / g_range
+                if recency < 0.6:
+                    color = _mix_color(color, C.SURFACE0, 0.58)
+
+            if (parent_id, child_id) in ancestor_edges:
+                color = C.YELLOW
+                width = max(width, 3.0)
+                dash = ()
+            elif (parent_id, child_id) in descendant_edges:
+                color = C.LAVENDER
+                width = max(width, 2.4)
+                dash = ()
+
+            if cross_island:
+                bend = 10 if child.island >= parent.island else -10
+                mx = (p[0] + c[0]) / 2
+                my = (p[1] + c[1]) / 2 + bend
+                self._viz_canvas.create_line(
+                    p[0], p[1], mx, my, c[0], c[1],
+                    fill=color, width=width, dash=dash, smooth=True, splinesteps=12,
+                )
+            else:
+                self._viz_canvas.create_line(
+                    p[0], p[1], c[0], c[1],
+                    fill=color, width=width, dash=dash,
+                )
+
+        # Draw nodes (size=quality, fill=delta, outline=lineage/champions)
+        for n in sorted(nodes.values(), key=lambda x: (x.generation, x.metric, x.prog_id)):
             pos = positions.get(n.prog_id)
             if not pos:
                 continue
-            norm = (n.metric - m_min) / m_range if m_range > 0 else 0.5
-            r = 4 + int(5 * max(0.0, min(1.0, norm)))
-            color = self._island_colors[n.island % len(self._island_colors)]
-            outline = C.TEXT if abs(n.metric - best_by_island.get(n.island, n.metric)) < 1e-9 else ""
+            island_color = self._island_colors[n.island % len(self._island_colors)]
+            delta = self._viz_delta_map.get(n.prog_id)
+            if delta is None:
+                fill = _mix_color(island_color, C.SURFACE1, 0.55)
+            elif delta >= 0:
+                gain = _clamp01(delta / max(1e-9, max_gain)) if max_gain > 0 else 0.0
+                fill = _mix_color(island_color, C.GREEN, 0.28 + 0.42 * gain)
+            else:
+                drop = _clamp01(abs(delta) / max(1e-9, max_drop)) if max_drop > 0 else 0.0
+                fill = _mix_color(island_color, C.RED, 0.16 + 0.24 * drop)
+
+            metric_norm = _clamp01((n.metric - m_min) / m_range) if m_range > 0 else 0.5
+            radius = 3.2 + 3.0 * metric_norm
+            if delta is not None and delta > 0 and max_gain > 0:
+                radius += 1.8 * _clamp01(delta / max_gain)
+            if highlight_mode == "Recent" and g_range > 0:
+                recency = (n.generation - g_min) / g_range
+                radius += 1.6 * recency
+            if n.prog_id == self._viz_global_best_id:
+                radius += 1.6
+            if n.prog_id == self._viz_selected_id:
+                radius += 1.4
+
+            parent_id = self._viz_parent_map.get(n.prog_id)
+            migrated = (
+                parent_id is not None
+                and parent_id in nodes
+                and nodes[parent_id].island != n.island
+            )
+            if highlight_mode == "Migration" and not migrated:
+                fill = _mix_color(fill, C.SURFACE0, 0.45)
+            elif highlight_mode == "Improvement" and (delta is None or delta <= 0):
+                fill = _mix_color(fill, C.SURFACE0, 0.45)
+            elif highlight_mode == "Top score" and metric_norm < 0.82:
+                fill = _mix_color(fill, C.SURFACE0, 0.35)
+
+            outline = ""
+            width = 1.0
+            if self._viz_island_best_ids.get(n.island) == n.prog_id:
+                outline = C.TEXT
+                width = 1.4
+            if n.prog_id in descendants:
+                outline = C.LAVENDER
+                width = max(width, 1.6)
+            if n.prog_id in ancestor_nodes:
+                outline = C.YELLOW
+                width = max(width, 1.8)
+            if n.prog_id == self._viz_selected_id:
+                outline = C.YELLOW
+                width = 2.2
+
             self._viz_canvas.create_oval(
-                pos[0] - r, pos[1] - r, pos[0] + r, pos[1] + r,
-                fill=color, outline=outline, width=1,
+                pos[0] - radius, pos[1] - radius, pos[0] + radius, pos[1] + radius,
+                fill=fill, outline=outline, width=width,
+            )
+            self._viz_hit_radius[n.prog_id] = max(6.0, radius + 2.0)
+
+        if self._viz_global_best_id and self._viz_global_best_id in positions:
+            gx, gy = positions[self._viz_global_best_id]
+            self._viz_canvas.create_text(
+                gx + 10, gy - 11, text="BEST",
+                fill=C.YELLOW, font=("Ubuntu Sans Mono", 8, "bold"), anchor="w",
             )
 
-        # Selected node ring
+        # Selected node halo
         if self._viz_selected_id and self._viz_selected_id in positions:
             x, y = positions[self._viz_selected_id]
+            ring_r = self._viz_hit_radius.get(self._viz_selected_id, 9.0) + 4.0
             self._viz_canvas.create_oval(
-                x - 11, y - 11, x + 11, y + 11,
+                x - ring_r, y - ring_r, x + ring_r, y + ring_r,
+                outline=_mix_color(C.YELLOW, C.SKY, 0.25), width=1,
+            )
+            self._viz_canvas.create_oval(
+                x - ring_r - 3, y - ring_r - 3, x + ring_r + 3, y + ring_r + 3,
                 outline=C.YELLOW, width=2,
             )
 
+        # Legend
+        legend_w, legend_h = 194, 72
+        lx = cw - pad_r - legend_w
+        ly = pad_t + 6
+        self._viz_canvas.create_rectangle(
+            lx, ly, lx + legend_w, ly + legend_h,
+            fill=_mix_color(C.MANTLE, C.SURFACE0, 0.7), outline=C.SURFACE1, width=1,
+        )
+        self._viz_canvas.create_text(
+            lx + 8, ly + 6, text="Edge encoding",
+            fill=C.SUBTEXT0, font=("Ubuntu Sans Mono", 8), anchor="nw",
+        )
+        self._viz_canvas.create_line(lx + 10, ly + 24, lx + 38, ly + 24, fill=C.GREEN, width=2)
+        self._viz_canvas.create_text(
+            lx + 44, ly + 24, text="improves", fill=C.SUBTEXT0, font=("Ubuntu Sans Mono", 8), anchor="w",
+        )
+        self._viz_canvas.create_line(
+            lx + 10, ly + 38, lx + 38, ly + 38, fill=C.RED, width=1, dash=(2, 4)
+        )
+        self._viz_canvas.create_text(
+            lx + 44, ly + 38, text="regresses", fill=C.SUBTEXT0, font=("Ubuntu Sans Mono", 8), anchor="w",
+        )
+        self._viz_canvas.create_line(
+            lx + 10, ly + 52, lx + 38, ly + 52, fill=C.SKY, width=2, dash=(4, 3)
+        )
+        self._viz_canvas.create_text(
+            lx + 44, ly + 52, text="migration", fill=C.SUBTEXT0, font=("Ubuntu Sans Mono", 8), anchor="w",
+        )
+
         self._viz_positions = positions
+
+    def _draw_viz_performance(self, nodes: dict[str, VizNode], metric_key: str) -> None:
+        self._viz_canvas.update_idletasks()
+        cw = max(520, self._viz_canvas.winfo_width() or 600)
+        ch = max(300, self._viz_canvas.winfo_height() or 360)
+        pad_l, pad_r, pad_t, pad_b = 72, 24, 38, 56
+        plot_w = cw - pad_l - pad_r
+        plot_h = ch - pad_t - pad_b
+        if plot_w < 120 or plot_h < 80:
+            self._viz_label("Visualizer area too small")
+            return
+
+        by_gen: dict[int, list[VizNode]] = {}
+        for node in nodes.values():
+            by_gen.setdefault(node.generation, []).append(node)
+        gens = sorted(by_gen.keys())
+        if not gens:
+            self._viz_label("No generation data")
+            return
+
+        g_min = min(gens)
+        g_max = max(gens)
+        g_range = max(1, g_max - g_min)
+        y_vals = [n.metric for n in nodes.values()]
+        y_min_raw = min(y_vals)
+        y_max_raw = max(y_vals)
+        if abs(y_max_raw - y_min_raw) < 1e-9:
+            y_min = y_min_raw - 0.5
+            y_max = y_max_raw + 0.5
+        else:
+            pad = 0.05 * (y_max_raw - y_min_raw)
+            y_min = y_min_raw - pad
+            y_max = y_max_raw + pad
+        y_range = max(1e-9, y_max - y_min)
+
+        def _xy(gen: int, val: float) -> tuple[float, float]:
+            x = pad_l + ((gen - g_min) / g_range) * plot_w
+            y = pad_t + (1.0 - ((val - y_min) / y_range)) * plot_h
+            return x, y
+
+        self._viz_canvas.create_rectangle(
+            pad_l, pad_t, cw - pad_r, ch - pad_b,
+            fill=_mix_color(C.SURFACE0, C.MANTLE, 0.35),
+            outline=C.SURFACE1,
+        )
+
+        y_ticks = 6
+        for i in range(y_ticks):
+            frac = i / max(1, y_ticks - 1)
+            val = y_max - frac * (y_max - y_min)
+            y = pad_t + frac * plot_h
+            self._viz_canvas.create_line(pad_l, y, cw - pad_r, y, fill=C.SURFACE1, dash=(2, 5))
+            self._viz_canvas.create_text(
+                pad_l - 8, y, text=f"{val:.3f}",
+                fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 8), anchor="e",
+            )
+
+        x_tick_count = min(9, max(2, len(gens)))
+        for i in range(x_tick_count):
+            frac = i / max(1, x_tick_count - 1)
+            gv = int(round(g_min + frac * g_range))
+            x = pad_l + frac * plot_w
+            self._viz_canvas.create_line(x, pad_t, x, ch - pad_b, fill=C.SURFACE1, dash=(2, 5))
+            self._viz_canvas.create_text(
+                x, ch - pad_b + 10, text=str(gv),
+                fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 8), anchor="n",
+            )
+
+        avg_line: list[float] = []
+        best_line: list[float] = []
+        positions: dict[str, tuple[float, float]] = {}
+        hit_radius: dict[str, float] = {}
+        for gen in gens:
+            group = by_gen[gen]
+            avg_val = sum(n.metric for n in group) / max(1, len(group))
+            best_node = max(group, key=lambda n: (n.metric, n.prog_id))
+            ax, ay = _xy(gen, avg_val)
+            bx, by = _xy(gen, best_node.metric)
+            avg_line.extend([ax, ay])
+            best_line.extend([bx, by])
+            positions[best_node.prog_id] = (bx, by)
+            hit_radius[best_node.prog_id] = 8.0
+
+        if len(avg_line) >= 4:
+            self._viz_canvas.create_line(*avg_line, fill=C.LAVENDER, width=2, smooth=True, splinesteps=10)
+        if len(best_line) >= 4:
+            self._viz_canvas.create_line(*best_line, fill=C.YELLOW, width=3, smooth=True, splinesteps=10)
+
+        per_island: dict[int, list[tuple[int, float]]] = {}
+        for gen, group in by_gen.items():
+            by_island: dict[int, float] = {}
+            for n in group:
+                by_island[n.island] = max(by_island.get(n.island, -1e18), n.metric)
+            for island, best_val in by_island.items():
+                per_island.setdefault(island, []).append((gen, best_val))
+        for island, series in per_island.items():
+            if len(series) < 2:
+                continue
+            color = _mix_color(self._island_colors[island % len(self._island_colors)], C.SURFACE1, 0.35)
+            points: list[float] = []
+            for gen, val in sorted(series):
+                x, y = _xy(gen, val)
+                points.extend([x, y])
+            self._viz_canvas.create_line(*points, fill=color, width=1)
+
+        highlight_mode = self.viz_highlight_var.get().strip()
+        for prog_id, (x, y) in positions.items():
+            node = nodes.get(prog_id)
+            if node is None:
+                continue
+            base_r = 5.0
+            if highlight_mode == "Recent" and g_range > 0:
+                recency = (node.generation - g_min) / g_range
+                base_r += 2.0 * recency
+            is_selected = prog_id == self._viz_selected_id
+            is_best = prog_id == self._viz_global_best_id
+            fill = C.YELLOW if is_best else self._island_colors[node.island % len(self._island_colors)]
+            outline = C.TEXT if is_selected else ""
+            width = 2 if is_selected else 1
+            self._viz_canvas.create_oval(
+                x - base_r, y - base_r, x + base_r, y + base_r,
+                fill=fill, outline=outline, width=width,
+            )
+            hit_radius[prog_id] = max(hit_radius.get(prog_id, 6.0), base_r + 3.0)
+
+        self._viz_canvas.create_text(
+            pad_l, 14,
+            text=f"Performance by Generation ({metric_key})",
+            fill=C.LAVENDER, font=("Ubuntu Sans", 11, "bold"), anchor="nw",
+        )
+        self._viz_canvas.create_text(
+            cw - pad_r, 14,
+            text=f"gens {g_min} -> {g_max} | nodes {len(nodes)}",
+            fill=C.SUBTEXT0, font=FONT_MONO_SM, anchor="ne",
+        )
+        self._viz_canvas.create_text(
+            pad_l + 8, pad_t + 8,
+            text="yellow=best per generation  lavender=population average",
+            fill=C.SUBTEXT0, font=("Ubuntu Sans Mono", 8), anchor="nw",
+        )
+
+        self._viz_positions = positions
+        self._viz_hit_radius = hit_radius
+
+    def _draw_viz_list(self, nodes: dict[str, VizNode], metric_key: str) -> None:
+        self._viz_canvas.update_idletasks()
+        cw = max(520, self._viz_canvas.winfo_width() or 600)
+        ch = max(300, self._viz_canvas.winfo_height() or 360)
+        pad_l, pad_r, pad_t, pad_b = 16, 16, 38, 18
+        row_h = 20
+        max_rows = max(1, (ch - pad_t - pad_b - 28) // row_h)
+        rows = sorted(nodes.values(), key=lambda n: (n.metric, n.generation, n.prog_id), reverse=True)
+        rows = rows[:max_rows]
+
+        self._viz_canvas.create_rectangle(
+            pad_l, pad_t, cw - pad_r, ch - pad_b,
+            fill=_mix_color(C.SURFACE0, C.MANTLE, 0.35),
+            outline=C.SURFACE1,
+        )
+        self._viz_canvas.create_text(
+            pad_l, 14,
+            text=f"Program List ({metric_key})",
+            fill=C.LAVENDER, font=("Ubuntu Sans", 11, "bold"), anchor="nw",
+        )
+        self._viz_canvas.create_text(
+            cw - pad_r, 14,
+            text=f"showing top {len(rows)} of {len(nodes)}",
+            fill=C.SUBTEXT0, font=FONT_MONO_SM, anchor="ne",
+        )
+
+        header = "rank  metric      fit        gen  isl  depth  delta      id"
+        self._viz_canvas.create_text(
+            pad_l + 10, pad_t + 10, text=header,
+            fill=C.SUBTEXT0, font=("Ubuntu Sans Mono", 8, "bold"), anchor="nw",
+        )
+
+        positions: dict[str, tuple[float, float]] = {}
+        hit_radius: dict[str, float] = {}
+        for i, node in enumerate(rows, start=1):
+            y0 = pad_t + 24 + (i - 1) * row_h
+            y1 = y0 + row_h - 2
+            is_selected = node.prog_id == self._viz_selected_id
+            row_bg = _mix_color(C.SURFACE0, C.BLUE, 0.22) if is_selected else _mix_color(C.SURFACE0, C.MANTLE, 0.35)
+            self._viz_canvas.create_rectangle(
+                pad_l + 6, y0, cw - pad_r - 6, y1,
+                fill=row_bg, outline=C.SURFACE1 if i % 2 == 0 else "",
+            )
+            delta = self._viz_delta_map.get(node.prog_id)
+            delta_text = "n/a" if delta is None else f"{delta:+.4f}"
+            text = (
+                f"{i:>4}  {node.metric:>9.4f}  {node.fitness:>9.4f}  "
+                f"{node.generation:>4}  {node.island:>3}  "
+                f"{self._viz_depth_map.get(node.prog_id, 0):>5}  {delta_text:>9}  "
+                f"{node.prog_id[:18]}"
+            )
+            self._viz_canvas.create_text(
+                pad_l + 12, (y0 + y1) / 2, text=text,
+                fill=C.TEXT, font=("Ubuntu Sans Mono", 8), anchor="w",
+            )
+            cx = (pad_l + cw - pad_r) / 2
+            cy = (y0 + y1) / 2
+            positions[node.prog_id] = (cx, cy)
+            hit_radius[node.prog_id] = max(8.0, (cw - pad_l - pad_r) / 2)
+
+        self._viz_positions = positions
+        self._viz_hit_radius = hit_radius
+
+    def _draw_viz_map_elites(self, nodes: dict[str, VizNode], metric_key: str) -> None:
+        self._viz_canvas.update_idletasks()
+        cw = max(520, self._viz_canvas.winfo_width() or 600)
+        ch = max(300, self._viz_canvas.winfo_height() or 360)
+        pad_l, pad_r, pad_t, pad_b = 66, 20, 40, 54
+        plot_w = cw - pad_l - pad_r
+        plot_h = ch - pad_t - pad_b
+        if plot_w < 160 or plot_h < 120:
+            self._viz_label("Visualizer area too small")
+            return
+
+        x_key = self.viz_x_metric_var.get().strip()
+        y_key = self.viz_y_metric_var.get().strip()
+
+        points: list[tuple[VizNode, float, float]] = []
+        for node in nodes.values():
+            xv = self._viz_node_dimension_value(node, x_key)
+            yv = self._viz_node_dimension_value(node, y_key)
+            if xv is None or yv is None:
+                continue
+            points.append((node, xv, yv))
+
+        if not points:
+            self._viz_label(f"No points for dimensions: {x_key} vs {y_key}")
+            self._set_viz_map_text(
+                "MAP-Elites view could not render because selected dimensions "
+                "were not present in loaded metrics."
+            )
+            return
+
+        x_vals = [x for _, x, _ in points]
+        y_vals = [y for _, _, y in points]
+        m_vals = [node.metric for node, _, _ in points]
+        x_min, x_max = min(x_vals), max(x_vals)
+        y_min, y_max = min(y_vals), max(y_vals)
+        m_min, m_max = min(m_vals), max(m_vals)
+        x_range = max(1e-9, x_max - x_min)
+        y_range = max(1e-9, y_max - y_min)
+        m_range = max(1e-9, m_max - m_min)
+
+        x_bins = min(16, max(6, int(round(math.sqrt(len(points)) * 1.5))))
+        y_bins = min(12, max(4, int(round(math.sqrt(len(points)) * 1.1))))
+
+        cell_best: dict[tuple[int, int], VizNode] = {}
+        cell_vals: dict[tuple[int, int], tuple[float, float]] = {}
+        for node, xv, yv in points:
+            ix = int(_clamp01((xv - x_min) / x_range) * (x_bins - 1))
+            iy = int(_clamp01((yv - y_min) / y_range) * (y_bins - 1))
+            key = (ix, iy)
+            prev = cell_best.get(key)
+            if prev is None or node.metric > prev.metric:
+                cell_best[key] = node
+                cell_vals[key] = (xv, yv)
+
+        cell_w = plot_w / x_bins
+        cell_h = plot_h / y_bins
+        positions: dict[str, tuple[float, float]] = {}
+        hit_radius: dict[str, float] = {}
+        for ix in range(x_bins):
+            for iy in range(y_bins):
+                x0 = pad_l + ix * cell_w
+                y0 = pad_t + (y_bins - 1 - iy) * cell_h
+                x1 = x0 + cell_w
+                y1 = y0 + cell_h
+                node = cell_best.get((ix, iy))
+                if node is None:
+                    fill = _mix_color(C.MANTLE, C.SURFACE0, 0.55)
+                    border = _mix_color(C.SURFACE1, C.MANTLE, 0.35)
+                else:
+                    score_t = _clamp01((node.metric - m_min) / m_range)
+                    fill = _mix_color(C.BLUE, C.GREEN, score_t)
+                    fill = _mix_color(fill, C.SURFACE0, 0.25)
+                    border = _mix_color(C.TEXT, fill, 0.7)
+                self._viz_canvas.create_rectangle(x0, y0, x1, y1, fill=fill, outline=border, width=1)
+                if node is not None:
+                    cx = (x0 + x1) / 2
+                    cy = (y0 + y1) / 2
+                    positions[node.prog_id] = (cx, cy)
+                    hit_radius[node.prog_id] = max(8.0, min(cell_w, cell_h) * 0.48)
+                    if node.prog_id == self._viz_selected_id:
+                        self._viz_canvas.create_rectangle(
+                            x0 + 2, y0 + 2, x1 - 2, y1 - 2, outline=C.YELLOW, width=2
+                        )
+
+        tick_count = 6
+        for i in range(tick_count):
+            frac = i / max(1, tick_count - 1)
+            xv = x_min + frac * x_range
+            x = pad_l + frac * plot_w
+            self._viz_canvas.create_line(x, ch - pad_b, x, ch - pad_b + 5, fill=C.SUBTEXT0)
+            self._viz_canvas.create_text(
+                x, ch - pad_b + 8, text=f"{xv:.3g}",
+                fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 8), anchor="n",
+            )
+        for i in range(tick_count):
+            frac = i / max(1, tick_count - 1)
+            yv = y_min + frac * y_range
+            y = pad_t + (1.0 - frac) * plot_h
+            self._viz_canvas.create_line(pad_l - 5, y, pad_l, y, fill=C.SUBTEXT0)
+            self._viz_canvas.create_text(
+                pad_l - 8, y, text=f"{yv:.3g}",
+                fill=C.OVERLAY0, font=("Ubuntu Sans Mono", 8), anchor="e",
+            )
+
+        self._viz_canvas.create_text(
+            pad_l, 14,
+            text=f"MAP-Elites Grid ({metric_key})",
+            fill=C.LAVENDER, font=("Ubuntu Sans", 11, "bold"), anchor="nw",
+        )
+        self._viz_canvas.create_text(
+            cw - pad_r, 14,
+            text=f"coverage {len(cell_best)}/{x_bins * y_bins}",
+            fill=C.SUBTEXT0, font=FONT_MONO_SM, anchor="ne",
+        )
+        self._viz_canvas.create_text(
+            pad_l + plot_w / 2, ch - pad_b + 28,
+            text=x_key, fill=C.SUBTEXT0, font=("Ubuntu Sans Mono", 9), anchor="n",
+        )
+        self._viz_canvas.create_text(
+            12, pad_t + plot_h / 2,
+            text=y_key, fill=C.SUBTEXT0, font=("Ubuntu Sans Mono", 9), anchor="w",
+        )
+
+        top_cells = sorted(cell_best.items(), key=lambda kv: kv[1].metric, reverse=True)[:10]
+        lines = [
+            "Rendered MAP-Elites grid",
+            "",
+            f"Dimensions: X={x_key}, Y={y_key}",
+            f"Bins: {x_bins} x {y_bins}",
+            f"Cell coverage: {len(cell_best)}/{x_bins * y_bins} ({100.0 * len(cell_best) / max(1, x_bins * y_bins):.1f}%)",
+            f"{metric_key} span: {m_min:.4f} -> {m_max:.4f}",
+        ]
+        if self._viz_elite_map_type:
+            lines.append(f"Checkpoint elite map type: {self._viz_elite_map_type}")
+        if self._viz_map_feature_names:
+            lines.append("Checkpoint features: " + ", ".join(self._viz_map_feature_names))
+        if top_cells:
+            lines.extend(["", "Top occupied cells:"])
+            for (ix, iy), node in top_cells:
+                xv, yv = cell_vals.get((ix, iy), (float("nan"), float("nan")))
+                lines.append(
+                    f"cell=({ix},{iy}) {metric_key}={node.metric:.4f} "
+                    f"{x_key}={xv:.4f} {y_key}={yv:.4f} id={node.prog_id}"
+                )
+        self._set_viz_map_text("\n".join(lines))
+
+        self._viz_positions = positions
+        self._viz_hit_radius = hit_radius
 
     # ------------------------------------------------------------------ Log
     _RE_FITNESS = re.compile(
@@ -2172,6 +4820,9 @@ class Dashboard(tk.Tk):
     # ------------------------------------------------------------------ Runs
     def _refresh_runs(self) -> None:
         self.runs_list.delete(0, "end")
+        self._run_item_names.clear()
+        self._run_item_meta.clear()
+        self.runs_meta_var.set("")
         p = self._selected_problem()
         if not p:
             return
@@ -2192,6 +4843,17 @@ class Dashboard(tk.Tk):
                 pass
             return (num, name)
 
+        def _name_key(name: str) -> tuple[int, str]:
+            num = 10**9
+            try:
+                if name.startswith("run_") and name[4:].isdigit():
+                    num = int(name[4:])
+                elif name.startswith("run") and name[3:].isdigit():
+                    num = int(name[3:])
+            except Exception:
+                pass
+            return (num, name)
+
         # Determine fitness key from config
         fitness_key = "combined_score"
         cfg = self._load_config()
@@ -2200,37 +4862,187 @@ class Dashboard(tk.Tk):
             if isinstance(ec, dict):
                 fitness_key = ec.get("fitness_key", fitness_key)
 
+        selected_run = self.run_id_var.get().strip()
+        selected_idx = None
+        filt = self.run_filter_var.get().strip().lower()
+        status_filter = self.run_status_var.get().strip().upper()
+        if status_filter not in {s.upper() for s in RUN_STATUS_OPTIONS}:
+            status_filter = "ALL"
+        min_score = None
+        min_score_invalid = False
+        min_score_txt = self.run_min_score_var.get().strip()
+        if min_score_txt:
+            try:
+                min_score = float(min_score_txt)
+            except Exception:
+                min_score_invalid = True
+        status_counts = {"LIVE": 0, "WARM": 0, "IDLE": 0, "NEW": 0}
+        rows: list[dict[str, object]] = []
+
         for run_path in sorted(runs, key=_key):
             name = run_path.name
-            best = _best_fitness_for_run(run_path, fitness_key)
-            if best is not None:
-                label = f"{name}  ({best:.4f})"
+            last_mtime = _run_last_log_mtime(run_path)
+            status, color = self._run_activity(last_mtime)
+            status_counts[status] += 1
+
+            cache_key = (str(run_path), fitness_key)
+            cached = self._run_score_cache.get(cache_key)
+            if cached is not None and cached[0] == last_mtime:
+                best = cached[1]
             else:
-                label = name
-            self.runs_list.insert("end", label)
+                best = _best_fitness_for_run(run_path, fitness_key)
+                self._run_score_cache[cache_key] = (last_mtime, best)
+
+            best_txt = f"{best:.4f}" if best is not None else "----"
+            stamp = (
+                datetime.fromtimestamp(last_mtime).strftime("%m-%d %H:%M")
+                if last_mtime is not None
+                else "--"
+            )
+            if filt and filt not in name.lower():
+                continue
+            if status_filter != "ALL" and status != status_filter:
+                continue
+            if min_score is not None and (best is None or best < min_score):
+                continue
+
+            label = f"{name:<16} {status:<4} {best_txt:>6}  {stamp}"
+            rows.append({
+                "name": name,
+                "status": status,
+                "color": color,
+                "best": best,
+                "last_mtime": last_mtime,
+                "label": label,
+                "path": run_path,
+            })
+
+        sort_mode = self.run_sort_var.get().strip()
+        if sort_mode == "Best Score":
+            rows.sort(
+                key=lambda r: (
+                    r["best"] is None,
+                    -float(r["best"] if r["best"] is not None else -1e30),
+                    -(float(r["last_mtime"]) if r["last_mtime"] is not None else 0.0),
+                    str(r["name"]),
+                )
+            )
+        elif sort_mode == "Name":
+            rows.sort(key=lambda r: _name_key(str(r["name"])))
+        else:
+            rows.sort(
+                key=lambda r: (
+                    r["last_mtime"] is None,
+                    -(float(r["last_mtime"]) if r["last_mtime"] is not None else 0.0),
+                    _name_key(str(r["name"])),
+                )
+            )
+
+        for row in rows:
+            self.runs_list.insert("end", str(row["label"]))
+            idx = self.runs_list.size() - 1
+            try:
+                self.runs_list.itemconfig(idx, foreground=str(row["color"]))
+            except Exception:
+                pass
+            run_name = str(row["name"])
+            self._run_item_names.append(run_name)
+            self._run_item_meta.append(row)
+            if run_name == selected_run:
+                selected_idx = idx
+
+        shown = len(self._run_item_names)
+        meta = (
+            f"Shown {shown}/{len(runs)}  LIVE {status_counts['LIVE']}  "
+            f"WARM {status_counts['WARM']}  IDLE {status_counts['IDLE']}  NEW {status_counts['NEW']}"
+        )
+        filters: list[str] = [f"sort={sort_mode or RUN_SORT_OPTIONS[0]}"]
+        if status_filter != "ALL":
+            filters.append(f"state={status_filter}")
+        if filt:
+            filters.append(f"match='{filt}'")
+        if min_score is not None:
+            filters.append(f"min>={min_score:.4g}")
+        if min_score_invalid:
+            filters.append("min=invalid(ignored)")
+        if filters:
+            meta += "  |  " + "  ".join(filters)
+        self.runs_meta_var.set(meta)
+        if selected_idx is not None:
+            self.runs_list.selection_set(selected_idx)
+            self.runs_list.activate(selected_idx)
+            self.runs_list.see(selected_idx)
 
     def _on_problem_change(self) -> None:
         self._sync_capabilities()
-        self._refresh_runs()
+        self._run_score_cache.clear()
         self._refresh_configs()
+        self._refresh_runs()
         self._refresh_models_from_config()
         self._refresh_config_editor()
         self._refresh_models_tab()
         self._viz_last_ckpt = None
         self._refresh_visualizer()
         self._refresh_run_snapshot()
+        self._save_ui_state()
 
     def _on_run_select(self) -> None:
         sel = self.runs_list.curselection()
         if not sel:
             return
-        raw = self.runs_list.get(sel[0])
-        # Strip fitness annotation: "run3  (0.9540)" -> "run3"
-        run_name = raw.split("(")[0].strip() if "(" in raw else raw.strip()
+        idx = sel[0]
+        run_name = (
+            self._run_item_names[idx]
+            if 0 <= idx < len(self._run_item_names)
+            else self.runs_list.get(idx).strip().split()[0]
+        )
         self.run_id_var.set(run_name)
         self._refresh_run_snapshot()
         self._viz_last_ckpt = None
         self._refresh_visualizer()
+        self._save_ui_state()
+
+    def _selected_run_name(self) -> Optional[str]:
+        sel = self.runs_list.curselection()
+        if sel:
+            idx = sel[0]
+            if 0 <= idx < len(self._run_item_names):
+                return self._run_item_names[idx]
+            try:
+                return self.runs_list.get(idx).strip().split()[0]
+            except Exception:
+                return None
+        run_id = self.run_id_var.get().strip()
+        return run_id or None
+
+    def _open_selected_run_dir(self) -> None:
+        p = self._selected_problem()
+        if not p:
+            return
+        run_name = self._selected_run_name()
+        if not run_name:
+            self._set_status("Select a run first")
+            return
+        self.run_id_var.set(run_name)
+        run_dir = self.experiments_dir / p.name / run_name
+        if not run_dir.exists():
+            messagebox.showerror("Open Run", f"Run directory not found:\n{run_dir}")
+            return
+        _open_path(run_dir)
+        self._save_ui_state()
+
+    def _copy_selected_run_id(self) -> None:
+        run_name = self._selected_run_name()
+        if not run_name:
+            self._set_status("Select a run first")
+            return
+        try:
+            self.clipboard_clear()
+            self.clipboard_append(run_name)
+            self.update_idletasks()
+            self._set_status(f"Copied run id: {run_name}")
+        except Exception as e:
+            messagebox.showerror("Copy Failed", str(e))
 
     def _open_experiments(self) -> None:
         p = self._selected_problem()
@@ -2275,6 +5087,7 @@ class Dashboard(tk.Tk):
         self._refresh_models_from_config()
         self._refresh_config_editor()
         self._refresh_models_tab()
+        self._save_ui_state()
 
     def _open_config(self) -> None:
         cfg = self._selected_cfg_path()
@@ -2716,7 +5529,7 @@ class Dashboard(tk.Tk):
                             messagebox.showerror("Invalid",
                                                  f"{field} must be an integer.\nGot: {raw!r}")
                             return
-                    elif field in ("temp", "top_p", "weight"):
+                    elif field in ("temp", "top_p", "weight", "request_timeout_s"):
                         try:
                             entry[field] = float(raw)
                         except (ValueError, TypeError):
@@ -3091,8 +5904,10 @@ class Dashboard(tk.Tk):
                 self._set_status("Busy: command already running")
                 return
 
-            self._append_log(f"$ {shlex.join(cmd)}\n")
+            cmd_display = shlex.join(cmd)
+            self._append_log(f"$ {cmd_display}\n")
             self._run_start_time = time.monotonic()
+            self._active_cmd = cmd_display
 
             proc_env = dict(os.environ)
             proc_env["PYTHON"] = sys.executable
@@ -3124,10 +5939,10 @@ class Dashboard(tk.Tk):
             self.btn_stop.configure(state="normal")
             self._set_status(f"Running: {' '.join(cmd[-3:])}", ttl_ms=0)
 
-            t = threading.Thread(target=self._reader_thread, args=(self._proc,), daemon=True)
+            t = threading.Thread(target=self._reader_thread, args=(self._proc, cmd_display), daemon=True)
             t.start()
 
-    def _reader_thread(self, proc: subprocess.Popen[str]) -> None:
+    def _reader_thread(self, proc: subprocess.Popen[str], cmd_display: str) -> None:
         try:
             assert proc.stdout is not None
             for ln in proc.stdout:
@@ -3143,8 +5958,47 @@ class Dashboard(tk.Tk):
             self._q.put(f"\n[exit] returncode={code}\n")
             with self._proc_lock:
                 self._proc = None
-            # Auto-refresh runs after process exits
-            self.after(500, self._refresh_runs)
+            self.after(0, lambda: self._on_command_finished(cmd_display, code))
+
+    def _notify_desktop(self, title: str, body: str) -> None:
+        if self._closing or not self.notify_done_var.get():
+            return
+        if shutil.which("notify-send") is None:
+            return
+        try:
+            subprocess.Popen(
+                ["notify-send", title, body],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except Exception:
+            pass
+
+    def _on_command_finished(self, cmd_display: str, code: Optional[int]) -> None:
+        self._active_cmd = ""
+        if self._closing:
+            return
+        self._refresh_runs()
+        run_id = self.run_id_var.get().strip()
+        if run_id:
+            self._refresh_run_snapshot()
+            cur_tab = -1
+            try:
+                cur_tab = int(self._notebook.index("current"))
+            except Exception:
+                cur_tab = -1
+            if cur_tab == 1:
+                self._refresh_visualizer()
+
+        rc = -1 if code is None else int(code)
+        ok = (rc == 0)
+        tail = " ".join(cmd_display.split()[-4:])
+        status = f"Completed ({tail})" if ok else f"Failed rc={rc} ({tail})"
+        self._set_status(status, ttl_ms=9000)
+
+        note_title = "CodeEvolve Command Finished" if ok else "CodeEvolve Command Failed"
+        note_body = f"rc={rc}  {tail}"
+        self._notify_desktop(note_title, note_body)
 
     def _stop_proc(self) -> None:
         with self._proc_lock:
@@ -3171,6 +6025,29 @@ class Dashboard(tk.Tk):
             return False
         return True
 
+    def _suggest_new_problem_ai_model(self) -> str:
+        preferred = _AI_TEMPLATE_MODEL_DEFAULT.strip()
+        if preferred:
+            return preferred
+
+        cfg_models: list[str] = []
+        cfg = self._load_config()
+        if isinstance(cfg, dict):
+            self._collect_model_names(cfg, cfg_models)
+        for model in cfg_models:
+            if isinstance(model, str) and model.strip() and model != _NONE_MODEL:
+                return model.strip()
+        for model in getattr(self, "_installed_model_names", []):
+            if isinstance(model, str) and model.strip() and model != _NONE_MODEL:
+                return model.strip()
+        return _AI_TEMPLATE_MODEL_DEFAULT
+
+    def _suggest_new_problem_transcribe_model(self) -> str:
+        api_base = self.api_base_var.get().strip().lower()
+        if "openai.com" in api_base:
+            return _AI_TRANSCRIBE_MODEL_DEFAULT
+        return "whisper-1"
+
     def _on_close(self) -> None:
         if self._viz_after:
             try:
@@ -3178,16 +6055,24 @@ class Dashboard(tk.Tk):
             except Exception:
                 pass
             self._viz_after = None
+        if self._runs_auto_after:
+            try:
+                self.after_cancel(self._runs_auto_after)
+            except Exception:
+                pass
+            self._runs_auto_after = None
         with self._proc_lock:
             running = self._proc is not None
         if running:
             if not messagebox.askokcancel("Quit", "A command is still running. Stop and exit?"):
                 return
+            self._save_ui_state()
             self._closing = True
             self._close_kill_at = time.monotonic() + 3.0
             self._stop_proc()
             self.after(200, self._check_force_close)
             return
+        self._save_ui_state()
         self.destroy()
 
     def _check_force_close(self) -> None:
@@ -3224,6 +6109,7 @@ class Dashboard(tk.Tk):
         else:
             cmd += ["--next"]
         self._add_common_run_flags(p, cmd)
+        self._save_ui_state()
         self._spawn(cmd)
 
     def _cmd_run_next(self) -> None:
@@ -3234,6 +6120,7 @@ class Dashboard(tk.Tk):
             return
         cmd = ["bash", str(p.script_path), "run", "--next"]
         self._add_common_run_flags(p, cmd)
+        self._save_ui_state()
         self._spawn(cmd)
 
     def _add_common_run_flags(self, p: Problem, cmd: list[str]) -> None:

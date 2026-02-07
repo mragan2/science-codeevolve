@@ -2,11 +2,16 @@
 set -u
 set -o pipefail
 
-APP_ROOT="/home/rag/Projects/science-codeevolve"
-LOG_DIR="${APP_ROOT}/logs"
-LOG_FILE="${LOG_DIR}/dashboard.log"
-CONDA_SH="/home/rag/miniconda3/etc/profile.d/conda.sh"
-ENV_NAME="codeevolve"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_ROOT_DEFAULT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+APP_ROOT="${APP_ROOT:-${APP_ROOT_DEFAULT}}"
+LOG_DIR="${LOG_DIR:-${APP_ROOT}/logs}"
+LOG_FILE="${LOG_FILE:-${LOG_DIR}/dashboard.log}"
+LOCK_FILE="${LOCK_FILE:-${LOG_DIR}/dashboard.lock}"
+CONDA_SH="${CONDA_SH:-${HOME}/miniconda3/etc/profile.d/conda.sh}"
+ENV_NAME="${ENV_NAME:-codeevolve}"
+PYTHON_BIN="${PYTHON_BIN:-python}"
+DASHBOARD_PY="${APP_ROOT}/scripts/problem_dashboard.py"
 
 mkdir -p "${LOG_DIR}"
 
@@ -15,7 +20,27 @@ mkdir -p "${LOG_DIR}"
   echo "Launcher: ${0}"
   echo "APP_ROOT: ${APP_ROOT}"
   echo "USER: ${USER}"
+  echo "ENV_NAME: ${ENV_NAME}"
+  echo "PYTHON_BIN: ${PYTHON_BIN}"
 } >> "${LOG_FILE}"
+
+if [ ! -f "${DASHBOARD_PY}" ]; then
+  echo "ERROR: Dashboard script not found: ${DASHBOARD_PY}" >> "${LOG_FILE}"
+  exit 1
+fi
+
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"${LOCK_FILE}"
+  if ! flock -n 9; then
+    echo "INFO: Dashboard lock active at ${LOCK_FILE}; another instance is likely running." >> "${LOG_FILE}"
+    if command -v notify-send >/dev/null 2>&1; then
+      notify-send "CodeEvolve Dashboard" "Dashboard already running (lock: ${LOCK_FILE})"
+    fi
+    exit 0
+  fi
+else
+  echo "WARN: 'flock' not found; single-instance lock disabled." >> "${LOG_FILE}"
+fi
 
 cd "${APP_ROOT}" || {
   echo "ERROR: Failed to cd to ${APP_ROOT}" >> "${LOG_FILE}"
@@ -26,17 +51,17 @@ if [ -f "${CONDA_SH}" ]; then
   # shellcheck source=/dev/null
   source "${CONDA_SH}"
   if ! conda activate "${ENV_NAME}"; then
-    echo "ERROR: conda activate ${ENV_NAME} failed" >> "${LOG_FILE}"
+    echo "WARN: conda activate ${ENV_NAME} failed; continuing with current shell python." >> "${LOG_FILE}"
     if command -v notify-send >/dev/null 2>&1; then
-      notify-send "CodeEvolve Dashboard" "Failed to activate conda env '${ENV_NAME}'. See log: ${LOG_FILE}"
+      notify-send "CodeEvolve Dashboard" "Conda env '${ENV_NAME}' activation failed. Falling back to current python."
     fi
-    exit 1
   fi
 else
-  echo "ERROR: conda.sh not found at ${CONDA_SH}" >> "${LOG_FILE}"
-  if command -v notify-send >/dev/null 2>&1; then
-    notify-send "CodeEvolve Dashboard" "Conda not found. See log: ${LOG_FILE}"
-  fi
+  echo "WARN: conda.sh not found at ${CONDA_SH}; using current shell python." >> "${LOG_FILE}"
+fi
+
+if ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+  echo "ERROR: Python binary not found in PATH: ${PYTHON_BIN}" >> "${LOG_FILE}"
   exit 1
 fi
 
@@ -44,7 +69,7 @@ export PYTHONUNBUFFERED=1
 if [ -z "${TERM:-}" ]; then
   export TERM="xterm-256color"
 fi
-python "${APP_ROOT}/scripts/problem_dashboard.py" >> "${LOG_FILE}" 2>&1
+"${PYTHON_BIN}" "${DASHBOARD_PY}" >> "${LOG_FILE}" 2>&1
 rc=$?
 echo "Exit code: ${rc}" >> "${LOG_FILE}"
 exit "${rc}"

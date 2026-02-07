@@ -197,9 +197,15 @@ cmd_tail() {
   local run_id
   run_id="$(normalize_run "${1:-}")"
   local island="${2:-0}"
-  local log_path="${EXP_DIR}/${run_id}/${island}/results.log"
-
-  [[ -f "${log_path}" ]] || err "results.log not found: ${log_path}"
+  local log_dir="${EXP_DIR}/${run_id}/${island}"
+  local log_path=""
+  if [[ -f "${log_dir}/island.log" ]]; then
+    log_path="${log_dir}/island.log"
+  elif [[ -f "${log_dir}/results.log" ]]; then
+    log_path="${log_dir}/results.log"
+  else
+    err "No log found in ${log_dir} (checked island.log, results.log)"
+  fi
   tail -f "${log_path}"
 }
 

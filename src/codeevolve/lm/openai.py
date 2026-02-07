@@ -19,6 +19,11 @@ import random
 import re
 import httpx
 import time
+import os
+import fcntl
+from contextlib import contextmanager
+from email.utils import parsedate_to_datetime
+from urllib.parse import urlparse
 
 from uuid import uuid4
 
@@ -36,6 +41,197 @@ from codeevolve.utils.constants import (
 # ---------------------------------------------------------------------------
 # Language model classes
 # ---------------------------------------------------------------------------
+
+_RETRYABLE_HTTP_STATUS_CODES = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
+_NON_RETRYABLE_HTTP_STATUS_CODES = frozenset({400, 401, 403, 404, 405, 422})
+_MAX_RETRY_DELAY_S = 90.0
+_MIN_TRANSIENT_DELAY_S = 1.0
+_LOCALHOST_API_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
+_LOCAL_API_GATE_ENV = "CODEEVOLVE_LOCAL_API_SERIALIZE"
+_FORCE_MAX_TOKENS_ENV = "CODEEVOLVE_FORCE_MAX_TOKENS"
+_LOCAL_API_GATE_DIR = "/tmp"
+
+logger = logging.getLogger(__name__)
+
+
+def _extract_status_code(err: Exception) -> Optional[int]:
+    """Best-effort extraction of HTTP status code from provider exceptions."""
+    direct = getattr(err, "status_code", None)
+    if isinstance(direct, int):
+        return direct
+
+    response = getattr(err, "response", None)
+    if response is not None:
+        status_code = getattr(response, "status_code", None)
+        if isinstance(status_code, int):
+            return status_code
+
+    return None
+
+
+def _extract_retry_after_seconds(err: Exception) -> Optional[float]:
+    """Extract Retry-After header as seconds if present and parseable."""
+    response = getattr(err, "response", None)
+    if response is None:
+        return None
+    headers = getattr(response, "headers", None)
+    if not headers:
+        return None
+
+    retry_after = headers.get("retry-after") or headers.get("Retry-After")
+    if not retry_after:
+        return None
+
+    try:
+        retry_after_s = float(retry_after)
+        if retry_after_s >= 0:
+            return retry_after_s
+    except Exception:
+        pass
+
+    try:
+        dt = parsedate_to_datetime(retry_after)
+        now_s = time.time()
+        return max(0.0, dt.timestamp() - now_s)
+    except Exception:
+        return None
+
+
+def _is_likely_retryable_error(err: Exception) -> bool:
+    """Classify whether an LM/API error should be retried."""
+    status_code = _extract_status_code(err)
+    if status_code in _NON_RETRYABLE_HTTP_STATUS_CODES:
+        return False
+    if status_code in _RETRYABLE_HTTP_STATUS_CODES:
+        return True
+
+    if isinstance(
+        err,
+        (
+            asyncio.TimeoutError,
+            httpx.TimeoutException,
+            httpx.ConnectError,
+            httpx.NetworkError,
+            httpx.RemoteProtocolError,
+            httpx.TransportError,
+        ),
+    ):
+        return True
+
+    # OpenAI and OpenAI-compatible errors often encode status in message text.
+    msg = str(err).lower()
+    if any(
+        marker in msg
+        for marker in (
+            "service unavailable",
+            "temporarily unavailable",
+            "too many requests",
+            "rate limit",
+            "timeout",
+            "timed out",
+            "gateway timeout",
+            "bad gateway",
+            "connection reset",
+            "connection aborted",
+            "error code: 429",
+            "error code: 500",
+            "error code: 502",
+            "error code: 503",
+            "error code: 504",
+        )
+    ):
+        return True
+
+    # Preserve previous behavior by retrying unknown errors.
+    return True
+
+
+def _compute_retry_delay_s(err: Exception, attempt: int) -> float:
+    """Compute exponential backoff with jitter, respecting Retry-After when provided."""
+    status_code = _extract_status_code(err)
+    if status_code in (429, 503):
+        # These are often temporary throttling/load-shedding conditions.
+        base = 3.0
+    else:
+        base = _MIN_TRANSIENT_DELAY_S
+
+    delay = base * (2**attempt)
+    retry_after = _extract_retry_after_seconds(err)
+    if retry_after is not None:
+        delay = max(delay, retry_after)
+
+    delay = min(_MAX_RETRY_DELAY_S, delay)
+    jitter = random.uniform(0.85, 1.25)
+    return min(_MAX_RETRY_DELAY_S, max(_MIN_TRANSIENT_DELAY_S, delay * jitter))
+
+
+def _env_enabled(name: str) -> Optional[bool]:
+    """Parse a boolean env var, returning None when unset."""
+    value = os.getenv(name)
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def _is_local_api_base(api_base: Optional[str]) -> bool:
+    """Return whether api_base appears to target localhost."""
+    if not api_base:
+        return False
+    try:
+        host = (urlparse(api_base).hostname or "").lower()
+    except Exception:
+        return False
+    return host in _LOCALHOST_API_HOSTS
+
+
+def _should_serialize_api_requests(api_base: Optional[str]) -> bool:
+    """Serialize local endpoint requests to avoid overload spikes."""
+    override = _env_enabled(_LOCAL_API_GATE_ENV)
+    if override is not None:
+        return override
+    return _is_local_api_base(api_base)
+
+
+def _should_use_max_tokens_field(api_base: Optional[str]) -> bool:
+    """Choose max_tokens for local OpenAI-compatible servers unless overridden."""
+    override = _env_enabled(_FORCE_MAX_TOKENS_ENV)
+    if override is not None:
+        return override
+    return _is_local_api_base(api_base)
+
+
+def _api_gate_lock_path(api_base: Optional[str]) -> str:
+    """Build a lockfile path keyed by API host and port."""
+    parsed = urlparse(api_base or "")
+    host = (parsed.hostname or "default").lower()
+    port = parsed.port
+    if port is None:
+        port = 443 if parsed.scheme == "https" else 80
+    safe_host = re.sub(r"[^a-z0-9_.-]", "_", host)
+    return os.path.join(_LOCAL_API_GATE_DIR, f"codeevolve_lm_gate_{safe_host}_{port}.lock")
+
+
+@contextmanager
+def _api_request_gate(api_base: Optional[str]):
+    """Optional cross-process lock for local API endpoints."""
+    if not _should_serialize_api_requests(api_base):
+        yield
+        return
+
+    lock_path = _api_gate_lock_path(api_base)
+    os.makedirs(os.path.dirname(lock_path), exist_ok=True)
+
+    with open(lock_path, "a+", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 @dataclass
@@ -72,6 +268,7 @@ class OpenAILM(BaseLM):
     api_base: Optional[str] = None
     api_key: Optional[str] = None
     verify_ssl: Optional[bool] = None
+    request_timeout_s: float = 240.0
 
     client: AsyncOpenAI = field(init=False, repr=False)
 
@@ -97,7 +294,8 @@ class OpenAILM(BaseLM):
         Sets up the HTTP client with SSL verification settings and creates
         the AsyncOpenAI client instance with the provided configuration.
         """
-        http_client = httpx.AsyncClient(verify=self.verify_ssl)
+        http_timeout = httpx.Timeout(timeout=self.request_timeout_s, connect=20.0)
+        http_client = httpx.AsyncClient(verify=self.verify_ssl, timeout=http_timeout)
 
         self.client = AsyncOpenAI(
             api_key=self.api_key, base_url=self.api_base, http_client=http_client
@@ -122,31 +320,50 @@ class OpenAILM(BaseLM):
         params: Dict[str, Any] = {
             "model": self.model_name,
             "messages": messages,
-            "max_completion_tokens": self.max_tok,
             "user": f"user_{str(uuid4())}",
             "seed": self.seed,
             "top_p": self.top_p,
             "temperature": self.temp,
         }
+        if self.max_tok is not None:
+            if _should_use_max_tokens_field(self.api_base):
+                params["max_tokens"] = self.max_tok
+            else:
+                params["max_completion_tokens"] = self.max_tok
 
-        retry_delay: int = 1
         for attempt in range(self.retries + 1):
             try:
-                ret = await self.client.chat.completions.create(**params)
+                with _api_request_gate(self.api_base):
+                    ret = await self.client.chat.completions.create(**params)
                 content: str = ret.choices[0].message.content
                 content = content if content is not None else ""
                 return (content, ret.usage.prompt_tokens, ret.usage.completion_tokens)
             except Exception as err:
-                if attempt < self.retries:
-                    await asyncio.sleep(retry_delay)
-                    retry_delay = retry_delay << 1
-                else:
-                    raise ConnectionError(
-                        (
-                            f"Failed to fetch LM response after {self.retries+1} attempts"
-                            f"(Error:{str(err)})."
-                        )
+                status_code = _extract_status_code(err)
+                is_retryable = _is_likely_retryable_error(err)
+                has_retries_left = attempt < self.retries
+
+                if is_retryable and has_retries_left:
+                    retry_delay_s = _compute_retry_delay_s(err, attempt)
+                    logger.warning(
+                        "LM request failed (attempt %s/%s, status=%s, retryable=%s): %s. Retrying in %.2fs.",
+                        attempt + 1,
+                        self.retries + 1,
+                        status_code if status_code is not None else "unknown",
+                        is_retryable,
+                        str(err),
+                        retry_delay_s,
                     )
+                    await asyncio.sleep(retry_delay_s)
+                    continue
+
+                raise ConnectionError(
+                    (
+                        f"Failed to fetch LM response after {attempt + 1} attempts "
+                        f"(status={status_code if status_code is not None else 'unknown'}, "
+                        f"retryable={is_retryable}): {err}."
+                    )
+                ) from err
 
 
 @dataclass
@@ -429,22 +646,53 @@ class OpenAIEnsemble(BaseEnsemble):
                 - Number of completion tokens used
 
         Raises:
-            ConnectionError: If the selected model fails to generate a response.
+            ConnectionError: If all candidate models fail to generate a response.
         """
-        model_id: int = self.random_state.choices([*range(len(self.models))], self.weights)[0]
+        if not self.models:
+            raise ConnectionError("No models configured in the ensemble.")
 
-        self.logger.info(f"Attempting to run prompt on {self.models[model_id]}...")
+        candidate_ids: List[int] = [*range(len(self.models))]
+        candidate_weights: List[float] = [self.weights[idx] for idx in candidate_ids]
+        failures: List[str] = []
+        last_error: Optional[ConnectionError] = None
 
-        response, prompt_tok, compl_tok = await self.models[model_id].generate(messages)
+        while candidate_ids:
+            model_id: int = self.random_state.choices(candidate_ids, candidate_weights)[0]
+            chosen_index: int = candidate_ids.index(model_id)
+            model = self.models[model_id]
 
-        self.logger.info(
-            (
-                f"Successfully retrieved response, using {prompt_tok} prompt tokens"
-                f" and {compl_tok} completion tokens."
-            )
-        )
+            self.logger.info(f"Attempting to run prompt on {model}...")
 
-        return (model_id, response, prompt_tok, compl_tok)
+            try:
+                response, prompt_tok, compl_tok = await model.generate(messages)
+                self.logger.info(
+                    (
+                        f"Successfully retrieved response, using {prompt_tok} prompt tokens"
+                        f" and {compl_tok} completion tokens."
+                    )
+                )
+                return (model_id, response, prompt_tok, compl_tok)
+            except ConnectionError as err:
+                status_code = _extract_status_code(err)
+                failures.append(
+                    (
+                        f"{model} failed "
+                        f"(status={status_code if status_code is not None else 'unknown'}): {err}"
+                    )
+                )
+                last_error = err
+                self.logger.warning(
+                    "Model %s failed to generate (status=%s). Trying another model.",
+                    model,
+                    status_code if status_code is not None else "unknown",
+                )
+                candidate_ids.pop(chosen_index)
+                candidate_weights.pop(chosen_index)
+
+        failures_summary = "; ".join(failures) if failures else "No model failure details captured."
+        raise ConnectionError(
+            f"All {len(self.models)} ensemble models failed to generate a response. {failures_summary}"
+        ) from last_error
 
 
 # ---------------------------------------------------------------------------
@@ -479,6 +727,7 @@ class OpenAIEmbedding(BaseEmbedding):
     api_base: Optional[str] = None
     api_key: Optional[str] = None
     verify_ssl: Optional[bool] = None
+    request_timeout_s: float = 240.0
 
     client: AsyncOpenAI = field(init=False, repr=False)
 
@@ -502,7 +751,8 @@ class OpenAIEmbedding(BaseEmbedding):
         Sets up the HTTP client with SSL verification settings and creates
         the AsyncOpenAI client instance with the provided configuration.
         """
-        http_client = httpx.AsyncClient(verify=self.verify_ssl)
+        http_timeout = httpx.Timeout(timeout=self.request_timeout_s, connect=20.0)
+        http_client = httpx.AsyncClient(verify=self.verify_ssl, timeout=http_timeout)
         self.client = AsyncOpenAI(
             api_key=self.api_key, base_url=self.api_base, http_client=http_client
         )
@@ -530,10 +780,10 @@ class OpenAIEmbedding(BaseEmbedding):
         if self.dimensions is not None:
             params["dimensions"] = self.dimensions
 
-        retry_delay: int = 1
         for attempt in range(self.retries + 1):
             try:
-                response = await self.client.embeddings.create(**params)
+                with _api_request_gate(self.api_base):
+                    response = await self.client.embeddings.create(**params)
                 embeddings = [data.embedding for data in response.data]
                 total_tokens = response.usage.total_tokens
 
@@ -542,14 +792,31 @@ class OpenAIEmbedding(BaseEmbedding):
                 return (embeddings, total_tokens)
 
             except Exception as err:
-                if attempt < self.retries:
-                    await asyncio.sleep(retry_delay)
-                    retry_delay = retry_delay << 1
-                else:
-                    raise ConnectionError(
-                        f"Failed to compute embeddings after {self.retries + 1} attempts "
-                        f"(Error: {str(err)})."
+                status_code = _extract_status_code(err)
+                is_retryable = _is_likely_retryable_error(err)
+                has_retries_left = attempt < self.retries
+
+                if is_retryable and has_retries_left:
+                    retry_delay_s = _compute_retry_delay_s(err, attempt)
+                    logger.warning(
+                        "Embedding request failed (attempt %s/%s, status=%s, retryable=%s): %s. Retrying in %.2fs.",
+                        attempt + 1,
+                        self.retries + 1,
+                        status_code if status_code is not None else "unknown",
+                        is_retryable,
+                        str(err),
+                        retry_delay_s,
                     )
+                    await asyncio.sleep(retry_delay_s)
+                    continue
+
+                raise ConnectionError(
+                    (
+                        f"Failed to compute embeddings after {attempt + 1} attempts "
+                        f"(status={status_code if status_code is not None else 'unknown'}, "
+                        f"retryable={is_retryable}): {err}."
+                    )
+                ) from err
 
     async def embed(self, text: str) -> Tuple[List[float], int]:
         """Computes embeddings for a single text input.
